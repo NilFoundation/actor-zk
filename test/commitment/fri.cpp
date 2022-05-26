@@ -93,19 +93,26 @@ BOOST_AUTO_TEST_CASE(fri_basic_test) {
 
     // commit
     math::polynomial<typename FieldType::value_type> f = {1, 3, 4, 1, 5, 6, 7, 2, 8, 7, 5, 6, 1, 2, 1, 1};
+    math::polynomial_dfs<typename FieldType::value_type> f_dfs;
+    f_dfs.from_coefficients(f);
 
     merkle_tree_type commit_merkle = fri_type::precommit(f, D[0]);
+    merkle_tree_type commit_merkle_dfs = fri_type::precommit(f_dfs, D[0]);
 
     // eval
     std::vector<std::uint8_t> init_blob {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
     zk::transcript::fiat_shamir_heuristic_sequential<transcript_hash_type> transcript(init_blob);
+    zk::transcript::fiat_shamir_heuristic_sequential<transcript_hash_type> transcript_dfs(init_blob);
 
     proof_type proof = fri_type::proof_eval(f, commit_merkle, params, transcript);
+    proof_type proof_dfs = fri_type::proof_eval(f_dfs, commit_merkle_dfs, params, transcript_dfs);
 
     // verify
     zk::transcript::fiat_shamir_heuristic_sequential<transcript_hash_type> transcript_verifier(init_blob);
+    zk::transcript::fiat_shamir_heuristic_sequential<transcript_hash_type> transcript_verifier_dfs(init_blob);
 
     BOOST_CHECK(fri_type::verify_eval(proof, params, transcript_verifier));
+    BOOST_CHECK(fri_type::verify_eval(proof, params, transcript_verifier_dfs));
 
     typename FieldType::value_type verifier_next_challenge = transcript_verifier.template challenge<FieldType>();
     typename FieldType::value_type prover_next_challenge = transcript.template challenge<FieldType>();
