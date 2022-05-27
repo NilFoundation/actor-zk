@@ -126,8 +126,8 @@ namespace nil {
                              typename TranscriptHashType,
                              std::size_t M = 2>
                     struct basic_fri {
-
                         constexpr static const std::size_t m = M;
+                        BOOST_STATIC_ASSERT_MSG(m == 2, "unsupported m value!");
 
                         typedef FieldType field_type;
                         typedef MerkleTreeHashType merkle_tree_hash_type;
@@ -167,13 +167,11 @@ namespace nil {
                             //     return !(rhs == *this);
                             // }
                             std::array<typename FieldType::value_type, m> y;
-                            bool y_order_reversed;
                             merkle_proof_type p;
 
                             typename merkle_tree_type::value_type T_root;
 
                             std::array<typename FieldType::value_type, m> colinear_value;
-                            bool colinear_value_order_reversed;
                             merkle_proof_type colinear_path;
                         };
 
@@ -259,7 +257,6 @@ namespace nil {
                         }
 
                         static std::size_t get_paired_index(std::size_t x_index, std::size_t domain_size) {
-                            BOOST_STATIC_ASSERT_MSG(m == 2, "unsupported m value!");
                             return (x_index + domain_size / m) % domain_size;
                         }
 
@@ -299,11 +296,8 @@ namespace nil {
                             merkle_tree_type T_next;
 
                             for (std::size_t i = 0; i < r - 1; i++) {
-
                                 std::size_t domain_size = fri_params.D[i]->m;
-
                                 typename FieldType::value_type alpha = transcript.template challenge<FieldType>();
-
                                 x_index %= domain_size;
 
                                 // m = 2, so:
@@ -335,12 +329,8 @@ namespace nil {
 
                                 merkle_proof_type colinear_path = merkle_proof_type(T_next, x_index);
 
-                                round_proofs.push_back(round_proof_type(
-                                    {y, is_order_reversed(s_indices[0], s_indices[1], domain_size), p, p_tree->root(),
-                                     colinear_value,
-                                     is_order_reversed(x_index, get_paired_index(x_index, fri_params.D[i + 1]->m),
-                                                       fri_params.D[i + 1]->m),
-                                     colinear_path}));
+                                round_proofs.push_back(
+                                    round_proof_type({y, p, p_tree->root(), colinear_value, colinear_path}));
 
                                 p_tree = std::make_unique<merkle_tree_type>(T_next);
                             }
@@ -374,11 +364,8 @@ namespace nil {
                             merkle_tree_type T_next;
 
                             for (std::size_t i = 0; i < r - 1; i++) {
-
                                 std::size_t domain_size = fri_params.D[i]->m;
-
                                 typename FieldType::value_type alpha = transcript.template challenge<FieldType>();
-
                                 x_index %= domain_size;
 
                                 // m = 2, so:
@@ -415,12 +402,8 @@ namespace nil {
                                 merkle_proof_type colinear_path =
                                     make_proof_specialized(x_index, fri_params.D[i + 1]->m, T_next);
 
-                                round_proofs.push_back(round_proof_type(
-                                    {y, is_order_reversed(s_indices[0], s_indices[1], domain_size), p, p_tree->root(),
-                                     colinear_value,
-                                     is_order_reversed(x_index, get_paired_index(x_index, fri_params.D[i + 1]->m),
-                                                       fri_params.D[i + 1]->m),
-                                     colinear_path}));
+                                round_proofs.push_back(
+                                    round_proof_type({y, p, p_tree->root(), colinear_value, colinear_path}));
 
                                 p_tree = std::make_unique<merkle_tree_type>(T_next);
                             }
@@ -437,19 +420,25 @@ namespace nil {
 
                             transcript(proof.target_commitment);
 
-                            std::uint64_t idx = transcript.template int_challenge<std::uint64_t>();
-                            typename FieldType::value_type x = fri_params.D[0]->get_domain_element(idx);
+                            std::size_t domain_size = fri_params.D[0]->m;
+                            std::uint64_t x_index = transcript.template int_challenge<std::uint64_t>() % domain_size;
+                            typename FieldType::value_type x = fri_params.D[0]->get_domain_element(x_index);
 
                             std::size_t r = fri_params.r;
 
                             for (std::size_t i = 0; i < r - 1; i++) {
+                                domain_size = fri_params.D[i]->m;
                                 typename FieldType::value_type alpha = transcript.template challenge<FieldType>();
+                                x_index %= domain_size;
 
                                 // m = 2, so:
                                 std::array<typename FieldType::value_type, m> s;
+                                std::array<std::size_t, m> s_indices;
                                 if constexpr (m == 2) {
                                     s[0] = x;
                                     s[1] = -x;
+                                    s_indices[0] = x_index;
+                                    s_indices[1] = get_paired_index(x_index, domain_size);
                                 } else {
                                     return false;
                                 }
@@ -458,7 +447,7 @@ namespace nil {
                                     std::array<std::uint8_t, m * field_element_type::length()> leaf_data;
                                     auto write_iter = leaf_data.begin();
                                     for (std::size_t j = 0; j < m; j++) {
-                                        if (proof.round_proofs[i].y_order_reversed) {
+                                        if (is_order_reversed(s_indices[0], s_indices[1], domain_size)) {
                                             field_element_type leaf_val(proof.round_proofs[i].y[m - j - 1]);
                                             leaf_val.write(write_iter, field_element_type::length());
                                         } else {
@@ -490,12 +479,13 @@ namespace nil {
                                 math::polynomial<typename FieldType::value_type> interpolant =
                                     math::lagrange_interpolation(interpolation_points);
 
+                                x_index %= fri_params.D[i + 1]->m;
                                 std::array<std::uint8_t, m * field_element_type::length()> leaf_data;
                                 auto write_iter = leaf_data.begin();
                                 for (std::size_t j = 0; j < m; j++) {
-                                    if (proof.round_proofs[i].colinear_value_order_reversed) {
-                                        field_element_type leaf_val(
-                                            proof.round_proofs[i].colinear_value[m - j - 1]);
+                                    if (is_order_reversed(x_index, get_paired_index(x_index, fri_params.D[i + 1]->m),
+                                                          fri_params.D[i + 1]->m)) {
+                                        field_element_type leaf_val(proof.round_proofs[i].colinear_value[m - j - 1]);
                                         leaf_val.write(write_iter, field_element_type::length());
                                     } else {
                                         field_element_type leaf_val(proof.round_proofs[i].colinear_value[j]);
