@@ -39,7 +39,7 @@
 #include <nil/crypto3/container/merkle/proof.hpp>
 
 #include <nil/crypto3/zk/transcript/fiat_shamir.hpp>
-#include <nil/crypto3/zk/commitments/detail/polynomial/basic_fri.hpp>
+#include <nil/crypto3/zk/commitments/detail/polynomial/fold_polynomial.hpp>
 
 namespace nil {
     namespace crypto3 {
@@ -127,20 +127,23 @@ namespace nil {
                             (std::is_same<typename ContainerType::value_type,
                                           math::polynomial_dfs<typename FieldType::value_type>>::value),
                             precommitment_type>::type precommit(
-                                ContainerType poly,
+                                const ContainerType &poly,
                                 const std::shared_ptr<math::evaluation_domain<FieldType>> &D) {
 
+#ifdef ZK_PLACEHOLDER_PROFILING_ENABLED
+                        auto begin = std::chrono::high_resolution_clock::now();
+                        auto last = begin;
+                        auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - last);
+#endif
+
                             for (int i = 0; i < poly.size(); ++i) {
-                                if (poly[i].size() != D->m){
-                                    poly[i].resize(D->m);
-                                }
+                                assert (poly[i].size() == D->size());
                             }
 
                             std::size_t list_size = poly.size();
-                            std::vector<std::vector<std::uint8_t>> y_data;
-                            y_data.resize(D->m);
+                            std::vector<std::vector<std::uint8_t>> y_data(D->size());
 
-                            for (std::size_t i = 0; i < D->m; i++) {
+                            for (std::size_t i = 0; i < D->size(); i++) {
                                 y_data[i].resize(field_element_type::length()*list_size);
                                 for (std::size_t j = 0; j < list_size; j++) {
                                     
@@ -149,8 +152,22 @@ namespace nil {
                                     y_val.write(write_iter, field_element_type::length());
                                 }
                             }
+#ifdef ZK_PLACEHOLDER_PROFILING_ENABLED
+                                elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - last);
+                                std::cout << "------Batched FRI precommit marshalling, time: " << elapsed.count() * 1e-9 << std::endl;
+                                last = std::chrono::high_resolution_clock::now();
+#endif
 
-                            return precommitment_type(y_data.begin(), y_data.end());
+                            precommitment_type precommitment(y_data.begin(), y_data.end());
+
+#ifdef ZK_PLACEHOLDER_PROFILING_ENABLED
+                                elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - last);
+                                std::cout << "------Batched FRI precommit merkle tree, time: " << elapsed.count() * 1e-9 << std::endl;
+                                last = std::chrono::high_resolution_clock::now();
+                                elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - begin);
+                                std::cout << "----Batched FRI precommit, time: " << elapsed.count() * 1e-9 << std::endl;
+#endif
+                            return precommitment;
                         }
 
                         template<typename ContainerType>
@@ -165,6 +182,7 @@ namespace nil {
                             std::vector<math::polynomial_dfs<typename FieldType::value_type>> poly_dfs(list_size);
                             for (std::size_t i = 0; i < list_size; i++) {
                                 poly_dfs[i].from_coefficients(poly[i]);
+                                poly_dfs[i].resize(D->size());
                             }
 
                             return precommit(poly_dfs, D);
@@ -185,23 +203,30 @@ namespace nil {
                             (std::is_same<typename ContainerType::value_type,
                                           math::polynomial_dfs<typename FieldType::value_type>>::value),
                             proof_type>::type
-                            proof_eval(const ContainerType &Q,
+                            proof_eval(ContainerType f,
                                        const ContainerType &g,
                                        precommitment_type &T,
                                        const params_type &fri_params,
                                        transcript_type &transcript = transcript_type()) {
 
-                            assert(Q.size() == g.size());
-                            std::size_t leaf_size = Q.size();
+#ifdef ZK_PLACEHOLDER_PROFILING_ENABLED
+                        auto begin = std::chrono::high_resolution_clock::now();
+                        auto last = begin;
+                        auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - last);
+                        std::cout << "--Batched FRI:" << std::endl;
+#endif
 
-                            proof_type proof;
+                            for (int i = 0; i < g.size(); ++i) {
+                                assert(g[i].size() == fri_params.D[0]->size());
+                            }
 
-                            ContainerType f = Q;    // copy?
+                            assert(f.size() == g.size());
+                            std::size_t leaf_size = f.size();
 
                             transcript(commit(T));
 
                             // TODO: how to sample x?
-                            std::size_t domain_size = fri_params.D[0]->m;
+                            std::size_t domain_size = fri_params.D[0]->size();
                             std::uint64_t x_index = (transcript.template int_challenge<std::uint64_t>()) % domain_size;
 
                             std::size_t r = fri_params.r;
@@ -212,7 +237,7 @@ namespace nil {
 
                             for (std::size_t i = 0; i < r - 1; i++) {
 
-                                std::size_t domain_size = fri_params.D[i]->m;
+                                std::size_t domain_size = fri_params.D[i]->size();
 
                                 typename FieldType::value_type alpha = transcript.template challenge<FieldType>();
 
@@ -248,12 +273,24 @@ namespace nil {
                                 // std::array<typename FieldType::value_type, leaf_size> colinear_value;
                                 std::vector<typename FieldType::value_type> colinear_value(leaf_size);
 
+#ifdef ZK_PLACEHOLDER_PROFILING_ENABLED
+                                last = std::chrono::high_resolution_clock::now();
+#endif
                                 for (std::size_t polynom_index = 0; polynom_index < leaf_size; polynom_index++) {
+                                    if (i == 0) {
+                                        f[polynom_index].resize(fri_params.D[i]->size());
+                                    }
                                     f[polynom_index] =
                                         fold_polynomial<FieldType>(f[polynom_index], alpha, fri_params.D[i]);
                                 }
 
-                                x_index = x_index % (fri_params.D[i + 1]->m);
+#ifdef ZK_PLACEHOLDER_PROFILING_ENABLED
+                                elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - last);
+                                std::cout << "----Batched FRI fold polynomial round " << i << ", time: " << elapsed.count() * 1e-9 << std::endl;
+                                last = std::chrono::high_resolution_clock::now();
+#endif
+
+                                x_index = x_index % (fri_params.D[i + 1]->size());
 
                                 for (std::size_t polynom_index = 0; polynom_index < leaf_size; polynom_index++) {
                                     colinear_value[polynom_index] =
@@ -261,6 +298,7 @@ namespace nil {
                                 }
 
                                 T_next = precommit(f, fri_params.D[i + 1]);    // new merkle tree
+
                                 transcript(commit(T_next));
 
                                 merkle_proof_type colinear_path = merkle_proof_type(T_next, x_index);
@@ -280,7 +318,13 @@ namespace nil {
                                         f[polynom_index].coefficients());
                             }
 
-                            return proof_type({round_proofs, final_polynomials, commit(T)});
+                            proof_type proof({round_proofs, final_polynomials, commit(T)});
+
+#ifdef ZK_PLACEHOLDER_PROFILING_ENABLED
+                        elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - begin);
+                        std::cout << "--Batched FRI, total time: " << elapsed.count() * 1e-9 << std::endl;
+#endif
+                            return proof;
                         }
 
                         template <typename ContainerType>
@@ -288,23 +332,19 @@ namespace nil {
                             (std::is_same<typename ContainerType::value_type,
                                           math::polynomial<typename FieldType::value_type>>::value),
                             proof_type>::type
-                            proof_eval(const ContainerType &Q,
+                            proof_eval(ContainerType f,
                                        const ContainerType &g,
                                        precommitment_type &T,
                                        const params_type &fri_params,
                                        transcript_type &transcript = transcript_type()) {
 
-                            assert(Q.size() == g.size());
-                            std::size_t leaf_size = Q.size();
-
-                            proof_type proof;
-
-                            ContainerType f = Q;    // copy?
+                            assert(f.size() == g.size());
+                            std::size_t leaf_size = f.size();
 
                             transcript(commit(T));
 
                             // TODO: how to sample x?
-                            std::size_t domain_size = fri_params.D[0]->m;
+                            std::size_t domain_size = fri_params.D[0]->size();
                             std::uint64_t x_index = (transcript.template int_challenge<std::uint64_t>()) % domain_size;
 
                             typename FieldType::value_type x = fri_params.D[0]->get_domain_element(x_index);
@@ -317,7 +357,7 @@ namespace nil {
 
                             for (std::size_t i = 0; i < r - 1; i++) {
 
-                                std::size_t domain_size = fri_params.D[i]->m;
+                                std::size_t domain_size = fri_params.D[i]->size();
 
                                 typename FieldType::value_type alpha = transcript.template challenge<FieldType>();
 
@@ -361,7 +401,7 @@ namespace nil {
                                     f[polynom_index] = fold_polynomial<FieldType>(f[polynom_index], alpha);
                                 }
 
-                                x_index = x_index % (fri_params.D[i + 1]->m);
+                                x_index = x_index % (fri_params.D[i + 1]->size());
                                 x = fri_params.D[i+1]->get_domain_element(x_index);
 
                                 for (std::size_t polynom_index = 0; polynom_index < leaf_size; polynom_index++) {
@@ -399,8 +439,9 @@ namespace nil {
 
                             transcript(proof.target_commitment);
 
-                            std::uint64_t idx = transcript.template int_challenge<std::uint64_t>();
-                            typename FieldType::value_type x = fri_params.D[0]->get_domain_element(idx);
+                            std::size_t domain_size = fri_params.D[0]->size();
+                            std::uint64_t x_index = (transcript.template int_challenge<std::uint64_t>()) % domain_size;
+                            typename FieldType::value_type x = fri_params.D[0]->get_domain_element(x_index);
 
                             std::size_t r = fri_params.r;
 
@@ -510,8 +551,9 @@ namespace nil {
                             std::size_t leaf_size = U.size();
                             transcript(proof.target_commitment);
 
-                            std::uint64_t idx = transcript.template int_challenge<std::uint64_t>();
-                            typename FieldType::value_type x = fri_params.D[0]->get_domain_element(idx);
+                            std::size_t domain_size = fri_params.D[0]->size();
+                            std::uint64_t x_index = (transcript.template int_challenge<std::uint64_t>()) % domain_size;
+                            typename FieldType::value_type x = fri_params.D[0]->get_domain_element(x_index);
 
                             std::size_t r = fri_params.r;
 

@@ -125,13 +125,13 @@ namespace nil {
                                             const typename ParamsType::commitment_params_type &commitment_params) {
 
                         math::polynomial_dfs<typename FieldType::value_type> f (
-                            domain->m-1, domain->m, FieldType::value_type::zero());
+                            domain->size()-1, domain->size(), FieldType::value_type::zero());
                         
-                        if (number < domain->m) {
+                        if (number < domain->size()) {
                             f[number] = FieldType::value_type::one();
                         }
 
-                        f.resize(commitment_params.D[0]->m);
+                        f.resize(commitment_params.D[0]->size());
 
                         return f;
                     }
@@ -308,14 +308,14 @@ namespace nil {
                         std::vector<math::polynomial_dfs<typename FieldType::value_type>> S_id(permutation_size);
 
                         for (std::size_t i = 0; i < permutation_size; i++) {
-                            S_id[i] = math::polynomial_dfs<typename FieldType::value_type>(domain->m - 1,
-                                domain->m, FieldType::value_type::zero());
+                            S_id[i] = math::polynomial_dfs<typename FieldType::value_type>(domain->size() - 1,
+                                domain->size(), FieldType::value_type::zero());
 
-                            for (std::size_t j = 0; j < domain->m; j++) {
+                            for (std::size_t j = 0; j < domain->size(); j++) {
                                 S_id[i][j] = delta.pow(i) * omega.pow(j);
                             }
 
-                            S_id[i].resize(commitment_params.D[0]->m);
+                            S_id[i].resize(commitment_params.D[0]->size());
                         }
 
                         return S_id;
@@ -331,15 +331,15 @@ namespace nil {
 
                         std::vector<math::polynomial_dfs<typename FieldType::value_type>> S_perm(permutation_size);
                         for (std::size_t i = 0; i < permutation_size; i++) {
-                            S_perm[i] = math::polynomial_dfs<typename FieldType::value_type>(domain->m - 1,
-                                domain->m, FieldType::value_type::zero());
+                            S_perm[i] = math::polynomial_dfs<typename FieldType::value_type>(domain->size() - 1,
+                                domain->size(), FieldType::value_type::zero());
 
-                            for (std::size_t j = 0; j < domain->m; j++) {
+                            for (std::size_t j = 0; j < domain->size(); j++) {
                                 auto key = std::make_pair(i, j);
                                 S_perm[i][j] = delta.pow(permutation[key].first) * omega.pow(permutation[key].second);
                             }
 
-                            S_perm[i].resize(commitment_params.D[0]->m);
+                            S_perm[i].resize(commitment_params.D[0]->size());
                         }
 
                         return S_perm;
@@ -350,13 +350,13 @@ namespace nil {
                                        const std::shared_ptr<math::evaluation_domain<FieldType>> &domain,
                                        const typename ParamsType::commitment_params_type &commitment_params) {
                         math::polynomial_dfs<typename FieldType::value_type> q_blind(
-                            domain->m - 1, domain->m, FieldType::value_type::zero());
+                            domain->size() - 1, domain->size(), FieldType::value_type::zero());
 
-                        for (std::size_t j = usable_rows + 1; j < domain->m; j++) {
+                        for (std::size_t j = usable_rows + 1; j < domain->size(); j++) {
                             q_blind[j] = FieldType::value_type::one();
                         }
 
-                        q_blind.resize(commitment_params.D[0]->m);
+                        q_blind.resize(commitment_params.D[0]->size());
                         return q_blind;
                     }
 
@@ -433,6 +433,13 @@ namespace nil {
                         const typename ParamsType::commitment_params_type &commitment_params,
                         std::size_t columns_with_copy_constraints) {
 
+#ifdef ZK_PLACEHOLDER_PROFILING_ENABLED
+                        auto begin = std::chrono::high_resolution_clock::now();
+                        auto last = begin;
+                        auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - last);
+                        std::cout << "Placeholder public preprocessor:" << std::endl;
+#endif
+
                         std::size_t N_rows = table_description.rows_amount;
                         std::size_t usable_rows = table_description.usable_rows_amount;
 
@@ -493,10 +500,15 @@ namespace nil {
                             basic_domain, nil::crypto3::math::polynomial<typename FieldType::value_type> {Z},
                             lagrange_0, public_commitments, c_rotations, N_rows};
 
-                        return preprocessed_data_type(
+                        preprocessed_data_type preprocessed_data(
                             {public_polynomial_table, sigma_perm_polys, id_perm_polys, q_last_q_blind[0],
                                 q_last_q_blind[1],
                              public_precommitments, common_data});
+#ifdef ZK_PLACEHOLDER_PROFILING_ENABLED
+                        elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - begin);
+                        std::cout << "Placeholder public preprocessor, total time: " << elapsed.count() * 1e-9 << std::endl;
+#endif
+                        return preprocessed_data;
                     }
                 };
 
