@@ -100,13 +100,14 @@ namespace nil {
                         };
 
                         struct round_proof_type {
-                            // bool operator==(const round_proof_type &rhs) const {
-                            //     return y == rhs.y && p == rhs.p && T_root == rhs.T_root &&
-                            //            colinear_value == rhs.colinear_value && colinear_path == rhs.colinear_path;
-                            // }
-                            // bool operator!=(const round_proof_type &rhs) const {
-                            //     return !(rhs == *this);
-                            // }
+                            bool operator==(const round_proof_type &rhs) const {
+                                return y == rhs.y && p == rhs.p && T_root == rhs.T_root &&
+                                       colinear_value == rhs.colinear_value && colinear_path == rhs.colinear_path;
+                            }
+                            bool operator!=(const round_proof_type &rhs) const {
+                                return !(rhs == *this);
+                            }
+
                             std::array<typename FieldType::value_type, m> y;
                             merkle_proof_type p;
 
@@ -268,7 +269,8 @@ namespace nil {
                                 T_next = precommit(f, fri_params.D[i + 1]);    // new merkle tree
                                 transcript(commit(T_next));
 
-                                merkle_proof_type colinear_path = merkle_proof_type(T_next, x_index);
+                                merkle_proof_type colinear_path =
+                                    make_proof_specialized(x_index, fri_params.D[i + 1]->size(), T_next);
 
                                 round_proofs.push_back(
                                     round_proof_type({y, p, p_tree->root(), colinear_value, colinear_path}));
@@ -420,7 +422,7 @@ namespace nil {
                                 std::array<std::uint8_t, m * field_element_type::length()> leaf_data;
                                 auto write_iter = leaf_data.begin();
                                 for (std::size_t j = 0; j < m; j++) {
-                                    if (is_order_reversed(x_index, get_paired_index(x_index, fri_params.D[i + 1]->m),
+                                    if (is_order_reversed(x_index, get_paired_index(x_index, fri_params.D[i + 1]->size()),
                                                           fri_params.D[i + 1]->size())) {
                                         field_element_type leaf_val(proof.round_proofs[i].colinear_value[m - j - 1]);
                                         leaf_val.write(write_iter, field_element_type::length());

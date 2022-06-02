@@ -27,6 +27,8 @@
 #ifndef CRYPTO3_ZK_COMMITMENTS_BASIC_BATCHED_FRI_HPP
 #define CRYPTO3_ZK_COMMITMENTS_BASIC_BATCHED_FRI_HPP
 
+#include <boost/static_assert.hpp>
+
 #include <nil/crypto3/marshalling/algebra/types/field_element.hpp>
 
 #include <nil/crypto3/math/polynomial/polynomial.hpp>
@@ -67,6 +69,7 @@ namespace nil {
                     struct basic_batched_fri {
 
                         constexpr static const std::size_t m = M;
+                        BOOST_STATIC_ASSERT_MSG(m == 2, "unsupported m value!");
 
                         typedef FieldType field_type;
                         typedef MerkleTreeHashType merkle_tree_hash_type;
@@ -87,31 +90,31 @@ namespace nil {
             				TranscriptHashType, M>::params_type;
 
                         struct round_proof_type {
-                            // bool operator==(const round_proof_type &rhs) const {
-                            //     return y == rhs.y && p == rhs.p && T_root == rhs.T_root &&
-                            //            colinear_value == rhs.colinear_value && colinear_path == rhs.colinear_path;
-                            // }
-                            // bool operator!=(const round_proof_type &rhs) const {
-                            //     return !(rhs == *this);
-                            // }
-                            // std::array<std::array<typename FieldType::value_type, m>, leaf_size> y;
+                            bool operator==(const round_proof_type &rhs) const {
+                                return y == rhs.y && p == rhs.p && T_root == rhs.T_root &&
+                                       colinear_value == rhs.colinear_value && colinear_path == rhs.colinear_path;
+                            }
+                            bool operator!=(const round_proof_type &rhs) const {
+                                return !(rhs == *this);
+                            }
+
                             std::vector<std::array<typename FieldType::value_type, m>> y;
-                            std::array<merkle_proof_type, m> p;
+                            merkle_proof_type p;
 
                             typename merkle_tree_type::value_type T_root;
 
-                            // std::array<typename FieldType::value_type, leaf_size> colinear_value;
-                            std::vector<typename FieldType::value_type> colinear_value;
+                            std::vector<std::array<typename FieldType::value_type, m>> colinear_value;
                             merkle_proof_type colinear_path;
                         };
 
                         struct proof_type {
-                            // bool operator==(const proof_type &rhs) const {
-                            //     return round_proofs == rhs.round_proofs && final_polynomials == rhs.final_polynomials;
-                            // }
-                            // bool operator!=(const proof_type &rhs) const {
-                            //     return !(rhs == *this);
-                            // }
+                            bool operator==(const proof_type &rhs) const {
+                                return round_proofs == rhs.round_proofs && final_polynomials == rhs.final_polynomials &&
+                                       target_commitment == rhs.target_commitment;
+                            }
+                            bool operator!=(const proof_type &rhs) const {
+                                return !(rhs == *this);
+                            }
 
                             std::vector<round_proof_type> round_proofs;    // 0..r-2
 
@@ -144,15 +147,18 @@ namespace nil {
                             }
 
                             std::size_t list_size = poly.size();
-                            std::vector<std::vector<std::uint8_t>> y_data(D->size());
+                            std::size_t leafs_number = D->size() / m;
+                            std::vector<std::vector<std::uint8_t>> y_data(leafs_number);
 
-                            for (std::size_t i = 0; i < D->size(); i++) {
-                                y_data[i].resize(field_element_type::length()*list_size);
+                            for (std::size_t i = 0; i < leafs_number; i++) {
+                                y_data[i].resize(list_size * m * field_element_type::length());
                                 for (std::size_t j = 0; j < list_size; j++) {
-                                    
-                                    field_element_type y_val(poly[j][i]);
-                                    auto write_iter = y_data[i].begin() + field_element_type::length() * j;
-                                    y_val.write(write_iter, field_element_type::length());
+                                    field_element_type y_val0(poly[j][i]);
+                                    auto write_iter = y_data[i].begin() + j * m * field_element_type::length();
+                                    y_val0.write(write_iter, field_element_type::length());
+
+                                    field_element_type y_val1(poly[j][i + leafs_number]);
+                                    y_val1.write(write_iter, field_element_type::length());
                                 }
                             }
 #ifdef ZK_PLACEHOLDER_PROFILING_ENABLED
@@ -199,6 +205,23 @@ namespace nil {
                         static commitment_type commit(const ContainerType &poly,
                                                       const std::shared_ptr<math::evaluation_domain<FieldType>> &D) {
                             return commit(precommit(poly, D));
+                        }
+
+                        static std::size_t get_paired_index(std::size_t x_index, std::size_t domain_size) {
+                            return (x_index + domain_size / m) % domain_size;
+                        }
+
+                        static bool is_order_reversed(std::size_t idx0, std::size_t idx1, std::size_t domain_size) {
+                            if (idx0 < idx1) {
+                                return false;
+                            }
+                            return true;
+                        }
+
+                        static merkle_proof_type make_proof_specialized(std::size_t x_index, std::size_t domain_size,
+                                                                        const merkle_tree_type &tree) {
+                            std::size_t min_x_index = std::min(x_index, get_paired_index(x_index, domain_size));
+                            return merkle_proof_type(tree, min_x_index);
                         }
 
                         template <typename ContainerType>
@@ -256,7 +279,7 @@ namespace nil {
                                 std::array<std::size_t, m> s_indices;
                                 if constexpr (m == 2) {
                                     s_indices[0] = x_index;
-                                    s_indices[1] = (x_index + domain_size / 2) % domain_size;
+                                    s_indices[1] = get_paired_index(x_index, domain_size);
                                 } else {
                                     return {};
                                 }
@@ -272,15 +295,9 @@ namespace nil {
                                     }
                                 }
 
-                                std::array<merkle_proof_type, m> p;
+                                auto p = make_proof_specialized(x_index, domain_size, *p_tree);
 
-                                for (std::size_t j = 0; j < m; j++) {
-
-                                    p[j] = merkle_proof_type(*p_tree, s_indices[j]);
-                                }
-
-                                // std::array<typename FieldType::value_type, leaf_size> colinear_value;
-                                std::vector<typename FieldType::value_type> colinear_value(leaf_size);
+                                std::vector<std::array<typename FieldType::value_type, m>> colinear_value(leaf_size);
 
 #ifdef ZK_PLACEHOLDER_PROFILING_ENABLED
                                 last = std::chrono::high_resolution_clock::now();
@@ -302,15 +319,16 @@ namespace nil {
                                 x_index = x_index % (fri_params.D[i + 1]->size());
 
                                 for (std::size_t polynom_index = 0; polynom_index < leaf_size; polynom_index++) {
-                                    colinear_value[polynom_index] =
-                                        f[polynom_index][x_index];    // polynomial evaluation
+                                    colinear_value[polynom_index][0] = f[polynom_index][x_index];
+                                    colinear_value[polynom_index][1] = f[polynom_index][get_paired_index(x_index, fri_params.D[i + 1]->size())];
                                 }
 
                                 T_next = precommit(f, fri_params.D[i + 1]);    // new merkle tree
 
                                 transcript(commit(T_next));
 
-                                merkle_proof_type colinear_path = merkle_proof_type(T_next, x_index);
+                                merkle_proof_type colinear_path =
+                                    make_proof_specialized(x_index, fri_params.D[i + 1]->size(), T_next);
 
                                 round_proofs.push_back(
                                     round_proof_type({y, p, p_tree->root(), colinear_value, colinear_path}));
@@ -379,7 +397,7 @@ namespace nil {
                                     s[0] = x;
                                     s[1] = -x;
                                     s_indices[0] = x_index;
-                                    s_indices[1] = (x_index + domain_size / 2) % domain_size;
+                                    s_indices[1] = get_paired_index(x_index, domain_size);
                                 } else {
                                     return {};
                                 }
@@ -396,15 +414,9 @@ namespace nil {
                                     }
                                 }
 
-                                std::array<merkle_proof_type, m> p;
+                                auto p = make_proof_specialized(x_index, domain_size, *p_tree);
 
-                                for (std::size_t j = 0; j < m; j++) {
-
-                                    p[j] = merkle_proof_type(*p_tree, s_indices[j]);
-                                }
-
-                                // std::array<typename FieldType::value_type, leaf_size> colinear_value;
-                                std::vector<typename FieldType::value_type> colinear_value(leaf_size);
+                                std::vector<std::array<typename FieldType::value_type, m>> colinear_value(leaf_size);
 
                                 for (std::size_t polynom_index = 0; polynom_index < leaf_size; polynom_index++) {
                                     f[polynom_index] = fold_polynomial<FieldType>(f[polynom_index], alpha);
@@ -414,14 +426,15 @@ namespace nil {
                                 x = fri_params.D[i+1]->get_domain_element(x_index);
 
                                 for (std::size_t polynom_index = 0; polynom_index < leaf_size; polynom_index++) {
-                                    colinear_value[polynom_index] =
-                                        f[polynom_index].evaluate(x);    // polynomial evaluation
+                                    colinear_value[polynom_index][0] = f[polynom_index].evaluate(x);
+                                    colinear_value[polynom_index][1] = f[polynom_index].evaluate(-x);
                                 }
 
                                 T_next = precommit(f, fri_params.D[i + 1]);    // new merkle tree
                                 transcript(commit(T_next));
 
-                                merkle_proof_type colinear_path = merkle_proof_type(T_next, x_index);
+                                merkle_proof_type colinear_path =
+                                    make_proof_specialized(x_index, fri_params.D[i + 1]->size(), T_next);
 
                                 round_proofs.push_back(
                                     round_proof_type({y, p, p_tree->root(), colinear_value, colinear_path}));
@@ -455,38 +468,46 @@ namespace nil {
                             std::size_t r = fri_params.r;
 
                             for (std::size_t i = 0; i < r - 1; i++) {
+                                domain_size = fri_params.D[i]->size();
                                 typename FieldType::value_type alpha = transcript.template challenge<FieldType>();
 
                                 typename FieldType::value_type x_next = x * x;
+                                x_index %= domain_size;
 
                                 // m = 2, so:
                                 std::array<typename FieldType::value_type, m> s;
+                                std::array<std::size_t, m> s_indices;
                                 if constexpr (m == 2) {
                                     s[0] = x;
                                     s[1] = -x;
+                                    s_indices[0] = x_index;
+                                    s_indices[1] = get_paired_index(x_index, domain_size);
                                 } else {
                                     return false;
                                 }
 
-                                for (std::size_t j = 0; j < m; j++) {
-                                    std::vector<std::uint8_t> leaf_data(field_element_type::length() * leaf_size);
-
+                                {
+                                    std::vector<std::uint8_t> leaf_data(leaf_size * m * field_element_type::length());
+                                    auto write_iter = leaf_data.begin();
                                     for (std::size_t polynom_index = 0; polynom_index < leaf_size; polynom_index++) {
-
-                                        typename FieldType::value_type leaf = proof.round_proofs[i].y[polynom_index][j];
-
-                                        field_element_type leaf_val(leaf);
-                                        auto write_iter =
-                                            leaf_data.begin() + field_element_type::length() * polynom_index;
-                                        leaf_val.write(write_iter, field_element_type::length());
+                                        for (std::size_t j = 0; j < m; j++) {
+                                            if (is_order_reversed(s_indices[0], s_indices[1], domain_size)) {
+                                                field_element_type leaf_val(
+                                                    proof.round_proofs[i].y[polynom_index][m - j - 1]);
+                                                leaf_val.write(write_iter, field_element_type::length());
+                                            } else {
+                                                field_element_type leaf_val(proof.round_proofs[i].y[polynom_index][j]);
+                                                leaf_val.write(write_iter, field_element_type::length());
+                                            }
+                                        }
                                     }
-
-                                    if (!proof.round_proofs[i].p[j].validate(leaf_data)) {
+                                    if (!proof.round_proofs[i].p.validate(leaf_data)) {
                                         return false;
                                     }
                                 }
 
-                                std::vector<std::uint8_t> leaf_data(field_element_type::length() * leaf_size);
+                                std::vector<std::uint8_t> leaf_data(leaf_size * m * field_element_type::length());
+                                x_index %= fri_params.D[i + 1]->size();
 
                                 for (std::size_t polynom_index = 0; polynom_index < leaf_size; polynom_index++) {
 
@@ -512,15 +533,24 @@ namespace nil {
                                     math::polynomial<typename FieldType::value_type> interpolant =
                                         math::lagrange_interpolation(interpolation_points);
 
-                                    typename FieldType::value_type leaf =
-                                        proof.round_proofs[i].colinear_value[polynom_index];
-
-                                    field_element_type leaf_val(leaf);
-                                    auto write_iter = leaf_data.begin() + field_element_type::length() * polynom_index;
-                                    leaf_val.write(write_iter, field_element_type::length());
+                                    auto write_iter =
+                                        leaf_data.begin() + polynom_index * m * field_element_type::length();
+                                    for (std::size_t j = 0; j < m; j++) {
+                                        if (is_order_reversed(x_index,
+                                                              get_paired_index(x_index, fri_params.D[i + 1]->size()),
+                                                              fri_params.D[i + 1]->size())) {
+                                            field_element_type leaf_val(
+                                                proof.round_proofs[i].colinear_value[polynom_index][m - j - 1]);
+                                            leaf_val.write(write_iter, field_element_type::length());
+                                        } else {
+                                            field_element_type leaf_val(
+                                                proof.round_proofs[i].colinear_value[polynom_index][j]);
+                                            leaf_val.write(write_iter, field_element_type::length());
+                                        }
+                                    }
 
                                     if (interpolant.evaluate(alpha) !=
-                                        proof.round_proofs[i].colinear_value[polynom_index]) {
+                                        proof.round_proofs[i].colinear_value[polynom_index][0]) {
                                         return false;
                                     }
                                 }
@@ -567,38 +597,46 @@ namespace nil {
                             std::size_t r = fri_params.r;
 
                             for (std::size_t i = 0; i < r - 1; i++) {
+                                domain_size = fri_params.D[i]->size();
                                 typename FieldType::value_type alpha = transcript.template challenge<FieldType>();
 
                                 typename FieldType::value_type x_next = x*x;
+                                x_index %= domain_size;
 
                                 // m = 2, so:
                                 std::array<typename FieldType::value_type, m> s;
+                                std::array<std::size_t, m> s_indices;
                                 if constexpr (m == 2) {
                                     s[0] = x;
                                     s[1] = -x;
+                                    s_indices[0] = x_index;
+                                    s_indices[1] = get_paired_index(x_index, domain_size);
                                 } else {
                                     return false;
                                 }
 
-                                for (std::size_t j = 0; j < m; j++) {
-                                    std::vector<std::uint8_t> leaf_data(field_element_type::length() * leaf_size);
-
+                                {
+                                    std::vector<std::uint8_t> leaf_data(leaf_size * m * field_element_type::length());
+                                    auto write_iter = leaf_data.begin();
                                     for (std::size_t polynom_index = 0; polynom_index < leaf_size; polynom_index++) {
-
-                                        typename FieldType::value_type leaf = proof.round_proofs[i].y[polynom_index][j];
-
-                                        field_element_type leaf_val(leaf);
-                                        auto write_iter =
-                                            leaf_data.begin() + field_element_type::length() * polynom_index;
-                                        leaf_val.write(write_iter, field_element_type::length());
+                                        for (std::size_t j = 0; j < m; j++) {
+                                            if (is_order_reversed(s_indices[0], s_indices[1], domain_size)) {
+                                                field_element_type leaf_val(
+                                                    proof.round_proofs[i].y[polynom_index][m - j - 1]);
+                                                leaf_val.write(write_iter, field_element_type::length());
+                                            } else {
+                                                field_element_type leaf_val(proof.round_proofs[i].y[polynom_index][j]);
+                                                leaf_val.write(write_iter, field_element_type::length());
+                                            }
+                                        }
                                     }
-
-                                    if (!proof.round_proofs[i].p[j].validate(leaf_data)) {
+                                    if (!proof.round_proofs[i].p.validate(leaf_data)) {
                                         return false;
                                     }
                                 }
 
-                                std::vector<std::uint8_t> leaf_data(field_element_type::length() * leaf_size);
+                                std::vector<std::uint8_t> leaf_data(leaf_size * m * field_element_type::length());
+                                x_index %= fri_params.D[i + 1]->size();
 
                                 for (std::size_t polynom_index = 0; polynom_index < leaf_size; polynom_index++) {
 
@@ -624,15 +662,24 @@ namespace nil {
                                     math::polynomial<typename FieldType::value_type> interpolant =
                                         math::lagrange_interpolation(interpolation_points);
 
-                                    typename FieldType::value_type leaf =
-                                        proof.round_proofs[i].colinear_value[polynom_index];
-
-                                    field_element_type leaf_val(leaf);
-                                    auto write_iter = leaf_data.begin() + field_element_type::length() * polynom_index;
-                                    leaf_val.write(write_iter, field_element_type::length());
+                                    auto write_iter =
+                                        leaf_data.begin() + polynom_index * m * field_element_type::length();
+                                    for (std::size_t j = 0; j < m; j++) {
+                                        if (is_order_reversed(x_index,
+                                                              get_paired_index(x_index, fri_params.D[i + 1]->size()),
+                                                              fri_params.D[i + 1]->size())) {
+                                            field_element_type leaf_val(
+                                                proof.round_proofs[i].colinear_value[polynom_index][m - j - 1]);
+                                            leaf_val.write(write_iter, field_element_type::length());
+                                        } else {
+                                            field_element_type leaf_val(
+                                                proof.round_proofs[i].colinear_value[polynom_index][j]);
+                                            leaf_val.write(write_iter, field_element_type::length());
+                                        }
+                                    }
 
                                     if (interpolant.evaluate(alpha) !=
-                                        proof.round_proofs[i].colinear_value[polynom_index]) {
+                                        proof.round_proofs[i].colinear_value[polynom_index][0]) {
                                         return false;
                                     }
                                 }
