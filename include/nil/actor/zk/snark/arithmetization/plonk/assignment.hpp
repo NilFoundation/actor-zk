@@ -70,12 +70,16 @@ namespace nil {
                         return _witnesses[index].size();
                     }
 
-                    ColumnType witness(std::uint32_t index) const {
+                    const ColumnType& witness(std::uint32_t index) const {
                         assert(index < ArithmetizationParams::witness_columns);
                         return _witnesses[index];
                     }
 
-                    witnesses_container_type witnesses() const {
+                    witnesses_container_type& witnesses() {
+                        return _witnesses;
+                    }
+
+                    const witnesses_container_type& witnesses() const {
                         return _witnesses;
                     }
 
@@ -129,12 +133,17 @@ namespace nil {
                         return _public_inputs[index].size();
                     }
 
-                    ColumnType public_input(std::uint32_t index) const {
+                    const ColumnType& public_input(std::uint32_t index) const {
                         assert(index < public_inputs_amount());
                         return _public_inputs[index];
                     }
 
-                    public_input_container_type public_inputs() const {
+                    // We need a way to access _public_inputs in a non-const form.
+                    public_input_container_type& public_inputs() {
+                        return _public_inputs;
+                    }
+
+                    const public_input_container_type& public_inputs() const {
                         return _public_inputs;
                     }
 
@@ -146,12 +155,17 @@ namespace nil {
                         return _constants[index].size();
                     }
 
-                    ColumnType constant(std::uint32_t index) const {
+                    const ColumnType& constant(std::uint32_t index) const {
                         assert(index < constants_amount());
                         return _constants[index];
                     }
 
-                    constant_container_type constants() const {
+                    // We need a way to access _constants in a non-const form.
+                    constant_container_type& constants() {
+                        return _constants;
+                    }
+
+                    const constant_container_type& constants() const {
                         return _constants;
                     }
 
@@ -163,12 +177,17 @@ namespace nil {
                         return _selectors[index].size();
                     }
 
-                    ColumnType selector(std::uint32_t index) const {
+                    const ColumnType& selector(std::uint32_t index) const {
                         assert(index < selectors_amount());
                         return _selectors[index];
                     }
 
-                    selector_container_type selectors() const {
+                    // We need a way to access _selectors in a non-const form.
+                    selector_container_type& selectors() {
+                        return _selectors;
+                    }
+
+                    const selector_container_type& selectors() const {
                         return _selectors;
                     }
 

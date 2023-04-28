@@ -39,33 +39,38 @@ namespace nil {
                     std::uint32_t usable_rows_amount = table.rows_amount();
 
                     std::uint32_t padded_rows_amount = std::pow(2, std::ceil(std::log2(usable_rows_amount)));
+                    if (padded_rows_amount == usable_rows_amount)
+                        padded_rows_amount *= 2;
 
                     if (padded_rows_amount < 8)
                         padded_rows_amount = 8;
 
-                    for (std::uint32_t w_index = 0; w_index < table._private_table.witnesses_amount(); w_index++) {
+                    for (std::uint32_t w_index = 0; w_index <
+                                                   table._private_table.witnesses_amount(); w_index++) {
 
                         table._private_table._witnesses[w_index].resize(padded_rows_amount,
-                                                                        FieldType::value_type::zero());
+                                                                    FieldType::value_type::zero());
                     }
 
-                    for (std::uint32_t pi_index = 0; pi_index < table._public_table.public_inputs_amount();
-                         pi_index++) {
+                    for (std::uint32_t pi_index = 0; pi_index <
+                                                   table._public_table.public_inputs_amount(); pi_index++) {
 
                         table._public_table._public_inputs[pi_index].resize(padded_rows_amount,
-                                                                            FieldType::value_type::zero());
+                                                                    FieldType::value_type::zero());
                     }
 
-                    for (std::uint32_t c_index = 0; c_index < table._public_table.constants_amount(); c_index++) {
+                    for (std::uint32_t c_index = 0; c_index <
+                                                  table._public_table.constants_amount(); c_index++) {
 
                         table._public_table._constants[c_index].resize(padded_rows_amount,
-                                                                       FieldType::value_type::zero());
+                                                                    FieldType::value_type::zero());
                     }
 
-                    for (std::uint32_t s_index = 0; s_index < table._public_table.selectors_amount(); s_index++) {
+                    for (std::uint32_t s_index = 0; s_index <
+                                                  table._public_table.selectors_amount(); s_index++) {
 
                         table._public_table._selectors[s_index].resize(padded_rows_amount,
-                                                                       FieldType::value_type::zero());
+                                                                    FieldType::value_type::zero());
                     }
 
                     return padded_rows_amount;
