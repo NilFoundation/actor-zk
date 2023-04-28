@@ -32,12 +32,12 @@
 #include <nil/actor/zk/snark/arithmetization/plonk/padding.hpp>
 
 namespace nil {
-    namespace actor_blueprint {
-        template<typename ArithmetizationType, std::size_t... BlueprintParams>
-        class assignment;
-    }    // namespace blueprint
-
     namespace actor {
+        namespace actor_blueprint {
+            template<typename ArithmetizationType, std::size_t... BlueprintParams>
+            class assignment;
+        }    // namespace blueprint
+
         namespace zk {
             namespace snark {
 
@@ -75,10 +75,6 @@ namespace nil {
                         return _witnesses[index];
                     }
 
-                    witnesses_container_type& witnesses() {
-                        return _witnesses;
-                    }
-
                     const witnesses_container_type& witnesses() const {
                         return _witnesses;
                     }
@@ -98,7 +94,7 @@ namespace nil {
                     friend std::uint32_t basic_padding<FieldType, ArithmetizationParams, ColumnType>(
                         plonk_table<FieldType, ArithmetizationParams, ColumnType> &table);
 
-                    friend struct nil::actor_blueprint::assignment<plonk_constraint_system<FieldType,
+                    friend struct nil::actor::actor_blueprint::assignment<plonk_constraint_system<FieldType,
                         ArithmetizationParams>>;
                 };
 
@@ -138,11 +134,6 @@ namespace nil {
                         return _public_inputs[index];
                     }
 
-                    // We need a way to access _public_inputs in a non-const form.
-                    public_input_container_type& public_inputs() {
-                        return _public_inputs;
-                    }
-
                     const public_input_container_type& public_inputs() const {
                         return _public_inputs;
                     }
@@ -160,11 +151,6 @@ namespace nil {
                         return _constants[index];
                     }
 
-                    // We need a way to access _constants in a non-const form.
-                    constant_container_type& constants() {
-                        return _constants;
-                    }
-
                     const constant_container_type& constants() const {
                         return _constants;
                     }
@@ -180,11 +166,6 @@ namespace nil {
                     const ColumnType& selector(std::uint32_t index) const {
                         assert(index < selectors_amount());
                         return _selectors[index];
-                    }
-
-                    // We need a way to access _selectors in a non-const form.
-                    selector_container_type& selectors() {
-                        return _selectors;
                     }
 
                     const selector_container_type& selectors() const {
@@ -214,7 +195,7 @@ namespace nil {
                     friend std::uint32_t basic_padding<FieldType, ArithmetizationParams, ColumnType>(
                         plonk_table<FieldType, ArithmetizationParams, ColumnType> &table);
 
-                    friend struct nil::actor_blueprint::assignment<plonk_constraint_system<FieldType,
+                    friend struct nil::actor::actor_blueprint::assignment<plonk_constraint_system<FieldType,
                         ArithmetizationParams>>;
                 };
 
