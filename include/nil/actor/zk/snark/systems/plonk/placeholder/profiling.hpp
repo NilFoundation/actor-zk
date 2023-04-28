@@ -39,7 +39,7 @@ namespace nil {
                 template<typename PlaceholderParams>
                 struct placeholder_profiling;
 
-                template<typename FieldType, typename ArithmetizationParams, typename MerkleTreeHashType,
+ /*               template<typename FieldType, typename ArithmetizationParams, typename MerkleTreeHashType,
                          typename TranscriptHashType, std::size_t Lambda, std::size_t R, std::size_t M>
                 struct placeholder_profiling<placeholder_params<FieldType, ArithmetizationParams, MerkleTreeHashType,
                                                                 TranscriptHashType, Lambda, R, M>> {
