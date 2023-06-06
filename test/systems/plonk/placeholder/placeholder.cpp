@@ -168,7 +168,6 @@ typedef placeholder_params<FieldType, typename placeholder_test_params_lookups::
     circuit_3_params;
 
 ACTOR_THREAD_TEST_CASE(placeholder_split_polynomial_test) {
-    std::cout << "Running test placeholder_split_polynomial_test " << std::endl;
 
     math::polynomial<typename FieldType::value_type> f = {1, 3, 4, 1, 5, 6, 7, 2, 8, 7, 5, 6, 1, 2, 1, 1};
     std::size_t expected_size = 4;
@@ -192,7 +191,6 @@ ACTOR_THREAD_TEST_CASE(placeholder_split_polynomial_test) {
 
 // This tests crashes for some reason...
 ACTOR_THREAD_TEST_CASE(placeholder_permutation_polynomials_test) {
-    std::cout << "Running test placeholder_permutation_polynomials_test " << std::endl;
 
     circuit_description<FieldType, circuit_2_params, table_rows_log, permutation_size> circuit =
         circuit_test_2<FieldType>();
@@ -269,7 +267,6 @@ ACTOR_THREAD_TEST_CASE(placeholder_permutation_polynomials_test) {
 }
 
 ACTOR_THREAD_TEST_CASE(placeholder_permutation_argument_test) {
-    std::cout << "Running test placeholder_permutation_argument_test " << std::endl;
 
     circuit_description<FieldType, circuit_2_params, table_rows_log, permutation_size> circuit =
         circuit_test_2<FieldType>();
@@ -344,11 +341,10 @@ ACTOR_THREAD_TEST_CASE(placeholder_permutation_argument_test) {
     }
 }
 
-// This test is commented due to a bug in zk/snark/systems/plonk/placeholder/lookup_argument.hpp line 160-173.
+// This test is disabled in singlethreaded version due to a bug in zk/snark/systems/plonk/placeholder/lookup_argument.hpp line 160-173.
 // Since lookup argument is old, and will be updated we do not want to fix this problem for now.
 //ACTOR_THREAD_TEST_CASE(placeholder_lookup_argument_test) {
 //
-//    std::cout << "Running test placeholder_lookup_argument_test " << std::endl;
 //    circuit_description<FieldType, circuit_3_params, table_rows_log, 3> circuit = circuit_test_3<FieldType>();
 //
 //    constexpr std::size_t argument_size = 5;
@@ -459,7 +455,6 @@ ACTOR_THREAD_TEST_CASE(placeholder_permutation_argument_test) {
 
 ACTOR_THREAD_TEST_CASE(placeholder_gate_argument_test) {
 
-    std::cout << "Running test placeholder_gate_argument_test " << std::endl;
     circuit_description<FieldType, circuit_2_params, table_rows_log, permutation_size> circuit =
         circuit_test_2<FieldType>();
 
@@ -565,7 +560,6 @@ ACTOR_THREAD_TEST_CASE(placeholder_gate_argument_test) {
 
 ACTOR_THREAD_TEST_CASE(placeholder_prover_basic_test) {
 
-    std::cout << "Running test placeholder_prover_basic_test " << std::endl;
     circuit_description<FieldType, circuit_2_params, table_rows_log, permutation_size> circuit =
         circuit_test_2<FieldType>();
 
@@ -604,10 +598,9 @@ ACTOR_THREAD_TEST_CASE(placeholder_prover_basic_test) {
     BOOST_CHECK(verifier_res);
 }
 
-// This test is commented due to a bug in zk/snark/systems/plonk/placeholder/lookup_argument.hpp line 160-173.
+// This test is disabled in singlethreaded version due to a bug in zk/snark/systems/plonk/placeholder/lookup_argument.hpp line 160-173.
 // Since lookup argument is old, and will be updated we do not want to fix this problem for now.
 //ACTOR_THREAD_TEST_CASE(placeholder_prover_lookup_test) {
-//    std::cout << "Running test placeholder_prover_lookup_test " << std::endl;
 //    circuit_description<FieldType, circuit_3_params, table_rows_log, 3> circuit =
 //        circuit_test_3<FieldType>();
 //
