@@ -99,6 +99,7 @@ namespace nil {
                         // 1. $\beta_1, \gamma_1 = \challenge$
                         typename FieldType::value_type beta = transcript.template challenge<FieldType>();
                         typename FieldType::value_type gamma = transcript.template challenge<FieldType>();
+
                         // 2. Calculate id_binding, sigma_binding for j from 1 to N_rows
                         // 3. Calculate $V_P$
                         math::polynomial_dfs<typename FieldType::value_type> V_P(
@@ -107,6 +108,8 @@ namespace nil {
                         std::vector<math::polynomial_dfs<typename FieldType::value_type>> g_v;
                         std::vector<math::polynomial_dfs<typename FieldType::value_type>> h_v;
                         for (std::size_t i = 0; i < S_id.size(); i++) {
+                            if(column_polynomials[i].size() != basic_domain->size()) 
+                                std::cout << "ERROR in "<< i << " column : " << column_polynomials[i].size() << " !=" << basic_domain->size() << std::endl;
                             BOOST_ASSERT(column_polynomials[i].size() == basic_domain->size());
                             BOOST_ASSERT(S_id[i].size() == basic_domain->size());
                             BOOST_ASSERT(S_sigma[i].size() == basic_domain->size());
@@ -116,10 +119,11 @@ namespace nil {
                         }
 
                         V_P[0] = FieldType::value_type::one();
+                        std::cout << "smp::count = " << smp::count << std::endl;
 
                         std::vector<future<>> fut;
                         std::size_t cpu_usage = std::min(basic_domain->size(), (std::size_t)smp::count - 1);
-                        std::size_t element_per_cpu = basic_domain->size() / (smp::count - 1);
+                        std::size_t element_per_cpu = smp::count == 1? basic_domain->size():basic_domain->size() / (smp::count - 1);
                         std::vector<typename FieldType::value_type> V_P_coeff(basic_domain->size());
                         for (auto shard_id = 0; shard_id < cpu_usage; ++shard_id) {
                             auto begin = (shard_id != 0) ? element_per_cpu * (shard_id) : 1;
@@ -141,8 +145,17 @@ namespace nil {
                             V_P[i] = V_P[i - 1] * V_P_coeff[i];
                         }
                         
-                        V_P.resize(fri_params.D[0]->m).get();
+/*                      V_P[0] = FieldType::value_type::one();
+                        for (std::size_t j = 1; j < basic_domain->size(); j++) {
+                            typename FieldType::value_type coeff = FieldType::value_type::one();
 
+                            for (std::size_t i = 0; i < S_id.size(); i++) {
+                                coeff *= g_v[i][j - 1] / h_v[i][j - 1];
+                            }
+                            V_P[j] = V_P[j - 1] * coeff;
+                        }
+                        V_P.resize(fri_params.D[0]->m).get();
+*/
                         // 4. Compute and add commitment to $V_P$ to $\text{transcript}$.
                         typename permutation_commitment_scheme_type::precommitment_type V_P_tree =
                             zk::algorithms::precommit<permutation_commitment_scheme_type>(
@@ -150,6 +163,7 @@ namespace nil {
                         typename permutation_commitment_scheme_type::commitment_type V_P_commitment =
                             zk::algorithms::commit<permutation_commitment_scheme_type>(V_P_tree);
                         transcript(V_P_commitment);
+
                         // 5. Calculate g_perm, h_perm
                         math::polynomial_dfs<typename FieldType::value_type> g;
                         math::polynomial_dfs<typename FieldType::value_type> h;

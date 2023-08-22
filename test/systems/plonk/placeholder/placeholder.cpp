@@ -153,6 +153,23 @@ struct placeholder_test_params_lookups {
     constexpr static const std::size_t m = 2;
 };
 
+struct placeholder_fibonacci_params {
+    using merkle_hash_type = nil::crypto3::hashes::keccak_1600<512>;
+    using transcript_hash_type = nil::crypto3::hashes::keccak_1600<512>;
+
+    constexpr static const std::size_t witness_columns = 1;
+    constexpr static const std::size_t public_input_columns = 1;
+    constexpr static const std::size_t constant_columns = 0;
+    constexpr static const std::size_t selector_columns = 1;
+
+    using arithmetization_params =
+        plonk_arithmetization_params<witness_columns, public_input_columns, constant_columns, selector_columns>;
+
+    constexpr static const std::size_t lambda = 40;
+    constexpr static const std::size_t r = 4;
+    constexpr static const std::size_t m = 2;
+};
+
 constexpr static const std::size_t table_columns =
     placeholder_test_params::witness_columns + placeholder_test_params::public_input_columns;
 
@@ -164,6 +181,7 @@ typedef commitments::fri<
 > fri_type;
 
 typedef placeholder_params<FieldType, typename placeholder_test_params::arithmetization_params> circuit_2_params;
+typedef placeholder_params<FieldType, typename placeholder_fibonacci_params::arithmetization_params> circuit_fib_params;
 typedef placeholder_params<FieldType, typename placeholder_test_params_lookups::arithmetization_params>
     circuit_3_params;
 
@@ -191,7 +209,6 @@ ACTOR_THREAD_TEST_CASE(placeholder_split_polynomial_test) {
 
 // This tests crashes for some reason...
 ACTOR_THREAD_TEST_CASE(placeholder_permutation_polynomials_test) {
-
     circuit_description<FieldType, circuit_2_params, table_rows_log, permutation_size> circuit =
         circuit_test_2<FieldType>();
 
