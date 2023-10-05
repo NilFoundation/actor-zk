@@ -219,7 +219,7 @@ struct test_initializer {
     }
 };
 
-BOOST_AUTO_TEST_SUITE(placeholder_circuit1)
+namespace placeholder_circuit1 {
     using curve_type = nil::crypto3::algebra::curves::pallas;
     using field_type = typename curve_type::base_field_type;
     using merkle_hash_type = nil::crypto3::hashes::keccak_1600<512>;
@@ -255,7 +255,7 @@ BOOST_AUTO_TEST_SUITE(placeholder_circuit1)
 
     using lpc_type = commitments::list_polynomial_commitment<field_type, lpc_params_type>;
     using lpc_scheme_type = typename commitments::lpc_commitment_scheme<lpc_type>;
-    using lpc_placeholder_params_type = nil::crypto3::zk::snark::placeholder_params<circuit_params, lpc_scheme_type>;
+    using lpc_placeholder_params_type = placeholder_params<circuit_params, lpc_scheme_type>;
     using policy_type = zk::snark::detail::placeholder_policy<field_type, lpc_placeholder_params_type>;
 
 ACTOR_FIXTURE_TEST_CASE(prover_test, test_initializer) {
@@ -293,9 +293,10 @@ ACTOR_FIXTURE_TEST_CASE(prover_test, test_initializer) {
     );
     BOOST_CHECK(verifier_res);
 }
-BOOST_AUTO_TEST_SUITE_END()
 
-BOOST_AUTO_TEST_SUITE(placeholder_circuit2)
+}
+
+namespace placeholder_circuit2 {
     using curve_type = nil::crypto3::algebra::curves::bls12<381>;
     using field_type = typename curve_type::scalar_field_type;
 
@@ -328,7 +329,7 @@ BOOST_AUTO_TEST_SUITE(placeholder_circuit2)
 
     using commitment_scheme_params_type = zk::commitments::commitment_scheme_params_type<field_type, std::vector<std::uint8_t>>;
     using commitment_scheme_dummy_type = dummy_commitment_scheme_type<commitment_scheme_params_type, typename placeholder_test_params::transcript_hash_type>;
-    using placeholder_params_type = nil::crypto3::zk::snark::placeholder_params<circuit_t_params, commitment_scheme_dummy_type>;
+    using placeholder_params_type = placeholder_params<circuit_t_params, commitment_scheme_dummy_type>;
     using policy_type = zk::snark::detail::placeholder_policy<field_type, placeholder_params_type>;
 
     using lpc_params_type = commitments::list_polynomial_commitment_params<        
@@ -340,11 +341,11 @@ BOOST_AUTO_TEST_SUITE(placeholder_circuit2)
 
     using lpc_type = commitments::list_polynomial_commitment<field_type, lpc_params_type>;
     using lpc_scheme_type = typename commitments::lpc_commitment_scheme<lpc_type>;
-    using lpc_placeholder_params_type = nil::crypto3::zk::snark::placeholder_params<circuit_t_params, lpc_scheme_type>;
+    using lpc_placeholder_params_type = placeholder_params<circuit_t_params, lpc_scheme_type>;
 
     using kzg_type = commitments::batched_kzg<curve_type, typename placeholder_test_params::transcript_hash_type>;
     using kzg_scheme_type = typename commitments::kzg_commitment_scheme<kzg_type>;
-    using kzg_placeholder_params_type = nil::crypto3::zk::snark::placeholder_params<circuit_t_params, kzg_scheme_type>;
+    using kzg_placeholder_params_type = placeholder_params<circuit_t_params, kzg_scheme_type>;
 
 ACTOR_FIXTURE_TEST_CASE(prover_test, test_initializer){
     typename field_type::value_type pi0 = test_global_alg_rnd_engine<field_type>();
@@ -589,7 +590,7 @@ ACTOR_THREAD_TEST_CASE(permutation_argument_test) {
 
     typename placeholder_permutation_argument<field_type, lpc_placeholder_params_type>::prover_result_type prover_res =
         placeholder_permutation_argument<field_type, lpc_placeholder_params_type>::prove_eval(
-            constraint_system, preprocessed_public_data, desc, polynomial_table, lpc_scheme, prover_transcript);
+            constraint_system, preprocessed_public_data, desc, polynomial_table, lpc_scheme, prover_transcript).get();
 
     // Challenge phase
     typename field_type::value_type y = nil::crypto3::algebra::random_element<field_type>();
@@ -619,9 +620,10 @@ ACTOR_THREAD_TEST_CASE(permutation_argument_test) {
         }
     }
 }
-BOOST_AUTO_TEST_SUITE_END()
+}
 
-BOOST_AUTO_TEST_SUITE(placeholder_circuit3)
+namespace placeholder_circuit3 {
+
     using curve_type = nil::crypto3::algebra::curves::pallas;
     using field_type = typename curve_type::base_field_type;
 
@@ -658,7 +660,7 @@ BOOST_AUTO_TEST_SUITE(placeholder_circuit3)
 
     using lpc_type = commitments::list_polynomial_commitment<field_type, lpc_params_type>;
     using lpc_scheme_type = typename commitments::lpc_commitment_scheme<lpc_type>;
-    using lpc_placeholder_params_type = nil::crypto3::zk::snark::placeholder_params<circuit_params, lpc_scheme_type>;
+    using lpc_placeholder_params_type = placeholder_params<circuit_params, lpc_scheme_type>;
     using policy_type = zk::snark::detail::placeholder_policy<field_type, circuit_params>;
 
 ACTOR_FIXTURE_TEST_CASE(prover_test, test_initializer) {
@@ -822,10 +824,10 @@ ACTOR_THREAD_TEST_CASE(lookup_test) {
         }
     }
 }
-BOOST_AUTO_TEST_SUITE_END()
 
+}
 
-BOOST_AUTO_TEST_SUITE(placeholder_circuit4)
+namespace placeholder_circuit4 {
     using curve_type = nil::crypto3::algebra::curves::pallas;
     using field_type = typename curve_type::base_field_type;
 
@@ -862,7 +864,7 @@ BOOST_AUTO_TEST_SUITE(placeholder_circuit4)
 
     using lpc_type = commitments::list_polynomial_commitment<field_type, lpc_params_type>;
     using lpc_scheme_type = typename commitments::lpc_commitment_scheme<lpc_type>;
-    using lpc_placeholder_params_type = nil::crypto3::zk::snark::placeholder_params<circuit_params, lpc_scheme_type>;
+    using lpc_placeholder_params_type = placeholder_params<circuit_params, lpc_scheme_type>;
     using policy_type = zk::snark::detail::placeholder_policy<field_type, circuit_params>;
 
 ACTOR_FIXTURE_TEST_CASE(prover_test, test_initializer) {
@@ -1025,9 +1027,9 @@ ACTOR_THREAD_TEST_CASE(lookup_test) {
         }
     }
 }
-BOOST_AUTO_TEST_SUITE_END()
+}
 
-BOOST_AUTO_TEST_SUITE(placeholder_circuit6)
+namespace placeholder_circuit6 {
     using curve_type = nil::crypto3::algebra::curves::pallas;
     using field_type = typename curve_type::base_field_type;
 
@@ -1064,7 +1066,7 @@ BOOST_AUTO_TEST_SUITE(placeholder_circuit6)
 
     using lpc_type = commitments::list_polynomial_commitment<field_type, lpc_params_type>;
     using lpc_scheme_type = typename commitments::lpc_commitment_scheme<lpc_type>;
-    using lpc_placeholder_params_type = nil::crypto3::zk::snark::placeholder_params<circuit_params, lpc_scheme_type>;
+    using lpc_placeholder_params_type = placeholder_params<circuit_params, lpc_scheme_type>;
     using policy_type = zk::snark::detail::placeholder_policy<field_type, circuit_params>;
 
 ACTOR_FIXTURE_TEST_CASE(prover_test, test_initializer) {
@@ -1104,9 +1106,10 @@ ACTOR_FIXTURE_TEST_CASE(prover_test, test_initializer) {
         preprocessed_public_data, proof, constraint_system, lpc_scheme);
     BOOST_CHECK(verifier_res);
 }
-BOOST_AUTO_TEST_SUITE_END()
+}
 
-BOOST_AUTO_TEST_SUITE(placeholder_circuit7)
+namespace placeholder_circuit7 {
+
     using curve_type = nil::crypto3::algebra::curves::pallas;
     using field_type = typename curve_type::base_field_type;
 
@@ -1143,7 +1146,7 @@ BOOST_AUTO_TEST_SUITE(placeholder_circuit7)
 
     using lpc_type = commitments::list_polynomial_commitment<field_type, lpc_params_type>;
     using lpc_scheme_type = typename commitments::lpc_commitment_scheme<lpc_type>;
-    using lpc_placeholder_params_type = nil::crypto3::zk::snark::placeholder_params<circuit_params, lpc_scheme_type>;
+    using lpc_placeholder_params_type = placeholder_params<circuit_params, lpc_scheme_type>;
     using policy_type = zk::snark::detail::placeholder_policy<field_type, circuit_params>;
 
 ACTOR_FIXTURE_TEST_CASE(prover_test, test_initializer) {
@@ -1182,4 +1185,5 @@ ACTOR_FIXTURE_TEST_CASE(prover_test, test_initializer) {
         preprocessed_public_data, proof, constraint_system, lpc_scheme);
     BOOST_CHECK(verifier_res);
 }
-BOOST_AUTO_TEST_SUITE_END()
+
+}
