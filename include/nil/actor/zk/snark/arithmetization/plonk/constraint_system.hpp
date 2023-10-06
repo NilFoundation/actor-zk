@@ -55,10 +55,12 @@ namespace nil {
                 template<typename FieldType, typename ArithmetizationParams>
                 struct plonk_constraint_system {
                     typedef std::vector<plonk_gate<FieldType, plonk_constraint<FieldType>>> gates_container_type;
+                    typedef plonk_variable<typename FieldType::value_type> variable_type;
                     typedef std::vector<plonk_copy_constraint<FieldType>> copy_constraints_container_type;
                     typedef std::vector<plonk_lookup_gate<FieldType, plonk_lookup_constraint<FieldType>>> lookup_gates_container_type;
                     typedef plonk_lookup_table<FieldType> lookup_table_type;
                     typedef std::vector<lookup_table_type> lookup_tables_type;
+                    typedef std::vector<plonk_variable<typename FieldType::value_type>> public_input_gate_type;
 
                 protected:
                     gates_container_type _gates;

@@ -60,6 +60,8 @@ namespace nil {
                     using transcript_hash_type = typename LPCScheme::transcript_hash_type;
                     using poly_type = PolynomialType;
                     using lpc = LPCScheme;
+                    using eval_storage_type = typename LPCScheme::eval_storage_type;
+
                 private:
                     std::map<std::size_t, precommitment_type> _trees;
                     typename fri_type::params_type _fri_params;
@@ -76,7 +78,7 @@ namespace nil {
 
                     commitment_type commit(std::size_t index){
                         this->state_commited(index);
-                        _trees[index] = nil::actor::zk::algorithms::precommit<fri_type>(this->_polys[index], _fri_params.D[0], _fri_params.step_list.front());
+                        _trees[index] = nil::actor::zk::algorithms::precommit<fri_type>(this->_polys[index], _fri_params.D[0], _fri_params.step_list.front()).get();
                         return _trees[index].root();
                     }
 
@@ -169,7 +171,7 @@ namespace nil {
                             combined_Q,
                             _fri_params.D[0], 
                             _fri_params.step_list.front()
-                        );
+                        ).get();
 
                         typename fri_type::proof_type fri_proof = nil::actor::zk::algorithms::proof_eval<
                             fri_type, poly_type
@@ -347,6 +349,7 @@ namespace nil {
                     using params_type = typename basic_fri::params_type;
                     using transcript_type = transcript::fiat_shamir_heuristic_sequential<typename LPCParams::transcript_hash_type>;
                     using transcript_hash_type = typename LPCParams::transcript_hash_type;
+                    using eval_storage_type = eval_storage<field_type>;
 
                     struct proof_type {
                         bool operator==(const proof_type &rhs) const {
@@ -359,7 +362,7 @@ namespace nil {
 
                         typedef std::vector<std::vector<typename FieldType::value_type>> z_type;
 
-                        eval_storage<field_type> z;
+                        eval_storage_type z;
                         typename basic_fri::proof_type fri_proof;
                     };
                 };

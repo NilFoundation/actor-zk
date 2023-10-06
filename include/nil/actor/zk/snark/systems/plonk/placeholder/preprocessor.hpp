@@ -510,7 +510,7 @@ namespace nil {
                         cv.resize(filled_val.length(), 0x00);
                         auto write_iter = cv.begin();
                         nil::marshalling::status_type status = filled_val.write(write_iter, cv.size());
-                        typename transcript_hash_type::digest_type circuit_hash = hash<transcript_hash_type>(cv);
+                        typename transcript_hash_type::digest_type circuit_hash = nil::crypto3::hash<transcript_hash_type>(cv);
 
                         typename preprocessed_data_type::verification_key vk = {circuit_hash, public_commitments.fixed_values};
                         typename preprocessed_data_type::common_data_type common_data (
