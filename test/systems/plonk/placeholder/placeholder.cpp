@@ -188,7 +188,7 @@ struct test_initializer {
     test_initializer() {
         test_global_seed = 0;
 
-        for (std::size_t i = 0; i < boost::unit_test::framework::master_test_suite().argc - 1; i++) {
+        for (std::size_t i = 0; i + 1 < boost::unit_test::framework::master_test_suite().argc; i++) {
             if (std::string(boost::unit_test::framework::master_test_suite().argv[i]) == "--seed") {
                 if (std::string(boost::unit_test::framework::master_test_suite().argv[i + 1]) == "random") {
                     std::random_device rd;
@@ -258,7 +258,7 @@ namespace placeholder_circuit1 {
     using lpc_placeholder_params_type = placeholder_params<circuit_params, lpc_scheme_type>;
     using policy_type = zk::snark::detail::placeholder_policy<field_type, lpc_placeholder_params_type>;
 
-ACTOR_FIXTURE_TEST_CASE(prover_test, test_initializer) {
+ACTOR_FIXTURE_TEST_CASE(prover_test_1, test_initializer) {
     auto circuit = circuit_test_1<field_type>(test_global_alg_rnd_engine<field_type>);
 
     plonk_table_description<field_type, typename circuit_params::arithmetization_params> desc;
@@ -347,7 +347,7 @@ namespace placeholder_circuit2 {
     using kzg_scheme_type = typename commitments::kzg_commitment_scheme<kzg_type>;
     using kzg_placeholder_params_type = placeholder_params<circuit_t_params, kzg_scheme_type>;
 
-ACTOR_FIXTURE_TEST_CASE(prover_test, test_initializer){
+ACTOR_FIXTURE_TEST_CASE(prover_test_2, test_initializer){
     typename field_type::value_type pi0 = test_global_alg_rnd_engine<field_type>();
     auto circuit = circuit_test_t<field_type>(pi0, test_global_alg_rnd_engine<field_type>);
 
@@ -663,7 +663,7 @@ namespace placeholder_circuit3 {
     using lpc_placeholder_params_type = placeholder_params<circuit_params, lpc_scheme_type>;
     using policy_type = zk::snark::detail::placeholder_policy<field_type, circuit_params>;
 
-ACTOR_FIXTURE_TEST_CASE(prover_test, test_initializer) {
+ACTOR_FIXTURE_TEST_CASE(prover_test_3, test_initializer) {
     auto circuit = circuit_test_3<field_type>();
 
     plonk_table_description<field_type, typename circuit_params::arithmetization_params> desc;
@@ -700,7 +700,7 @@ ACTOR_FIXTURE_TEST_CASE(prover_test, test_initializer) {
     BOOST_CHECK(verifier_res);
 }
 
-ACTOR_THREAD_TEST_CASE(lookup_test) {
+ACTOR_THREAD_TEST_CASE(lookup_test_3) {
     auto circuit = circuit_test_3<field_type>();
     constexpr std::size_t argument_size = 4;
 
@@ -867,7 +867,7 @@ namespace placeholder_circuit4 {
     using lpc_placeholder_params_type = placeholder_params<circuit_params, lpc_scheme_type>;
     using policy_type = zk::snark::detail::placeholder_policy<field_type, circuit_params>;
 
-ACTOR_FIXTURE_TEST_CASE(prover_test, test_initializer) {
+ACTOR_FIXTURE_TEST_CASE(prover_test_4, test_initializer) {
     auto circuit = circuit_test_4<field_type>(test_global_alg_rnd_engine<field_type>);
 
     plonk_table_description<field_type, typename circuit_params::arithmetization_params> desc;
@@ -904,7 +904,7 @@ ACTOR_FIXTURE_TEST_CASE(prover_test, test_initializer) {
     BOOST_CHECK(verifier_res);
 }
 
-ACTOR_THREAD_TEST_CASE(lookup_test) {
+ACTOR_THREAD_TEST_CASE(lookup_test_4) {
     auto circuit = circuit_test_4<field_type>(test_global_alg_rnd_engine<field_type>);
     constexpr std::size_t argument_size = 4;
 
@@ -1069,7 +1069,7 @@ namespace placeholder_circuit6 {
     using lpc_placeholder_params_type = placeholder_params<circuit_params, lpc_scheme_type>;
     using policy_type = zk::snark::detail::placeholder_policy<field_type, circuit_params>;
 
-ACTOR_FIXTURE_TEST_CASE(prover_test, test_initializer) {
+ACTOR_FIXTURE_TEST_CASE(prover_test_6, test_initializer) {
     auto circuit = circuit_test_6<field_type>();
 
     plonk_table_description<field_type, typename circuit_params::arithmetization_params> desc;
@@ -1149,7 +1149,7 @@ namespace placeholder_circuit7 {
     using lpc_placeholder_params_type = placeholder_params<circuit_params, lpc_scheme_type>;
     using policy_type = zk::snark::detail::placeholder_policy<field_type, circuit_params>;
 
-ACTOR_FIXTURE_TEST_CASE(prover_test, test_initializer) {
+ACTOR_FIXTURE_TEST_CASE(prover_test_7, test_initializer) {
     auto circuit = circuit_test_7<field_type>(test_global_alg_rnd_engine<field_type>, test_global_rnd_engine);
     plonk_table_description<field_type, typename circuit_params::arithmetization_params> desc;
 
