@@ -309,15 +309,16 @@ namespace nil {
                         }
 
                         // 10. final check
-                        std::array<typename FieldType::value_type, f_parts> F;
-                        F[0] = permutation_argument[0];
-                        F[1] = permutation_argument[1];
-                        F[2] = permutation_argument[2];
-                        F[3] = lookup_argument[0];
-                        F[4] = lookup_argument[1];
-                        F[5] = lookup_argument[2];
-                        F[6] = lookup_argument[3];
-                        F[7] = gate_argument[0];
+                        std::array<typename FieldType::value_type, f_parts> F = {
+                            permutation_argument[0],
+                            permutation_argument[1],
+                            permutation_argument[2],
+                            lookup_argument[0],
+                            lookup_argument[1],
+                            lookup_argument[2],
+                            lookup_argument[3],
+                            gate_argument[0]
+                        };
 
                         typename FieldType::value_type F_consolidated = FieldType::value_type::zero();
                         for (std::size_t i = 0; i < f_parts; i++) {
