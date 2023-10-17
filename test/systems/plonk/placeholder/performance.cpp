@@ -33,24 +33,7 @@
 #include <iostream>
 #include <fstream>
 
-#include <nil/actor/testing/test_case.hh>
-#include <nil/actor/testing/thread_test_case.hh>
-
-#include <nil/crypto3/algebra/curves/bls12.hpp>
-#include <nil/crypto3/algebra/fields/arithmetic_params/bls12.hpp>
-#include <nil/crypto3/algebra/curves/pallas.hpp>
-#include <nil/crypto3/algebra/fields/arithmetic_params/pallas.hpp>
-#include <nil/crypto3/algebra/random_element.hpp>
-
-#include <nil/crypto3/math/algorithms/unity_root.hpp>
-#include <nil/actor/math/polynomial/lagrange_interpolation.hpp>
-#include <nil/actor/math/algorithms/calculate_domain_set.hpp>
-
-#include <nil/crypto3/random/algebraic_engine.hpp>
-
-#include <nil/crypto3/hash/algorithm/hash.hpp>
-#include <nil/crypto3/hash/md5.hpp>
-#include <nil/crypto3/hash/sha2.hpp>
+#include <nil/sha2.hpp>
 #include <nil/crypto3/hash/keccak.hpp>
 
 #include <nil/actor/zk/snark/systems/plonk/placeholder/prover.hpp>
@@ -183,6 +166,8 @@ public:
 
         compute_columns_rotations();
     
+std::cout << "rows_amount = " << table_description.rows_amount << std::endl;
+
         std::size_t table_rows_log = std::ceil(std::log2(table_description.rows_amount));
         typename lpc_type::fri_type::params_type fri_params = 
             create_fri_params<typename lpc_type::fri_type, field_type>(table_rows_log);
@@ -326,16 +311,16 @@ ACTOR_FIXTURE_TEST_CASE(placeholder_merkle_tree_poseidon_test, placeholder_perfo
 
     run_placeholder_perf_test(
         "Merkle tree poseidon performance test",
-        "../libs/zk/test/systems/plonk/placeholder/data/merkle_tree_poseidon/merkle_tree_posseidon_circuit.crct",
-        "../libs/zk/test/systems/plonk/placeholder/data/merkle_tree_poseidon/merkle_tree_posseidon_assignment.tbl"
+        "../libs/actor/zk/test/systems/plonk/placeholder/data/merkle_tree_poseidon/merkle_tree_posseidon_circuit.crct",
+        "../libs/actor/zk/test/systems/plonk/placeholder/data/merkle_tree_poseidon/merkle_tree_posseidon_assignment.tbl"
     );
 }
 
 ACTOR_FIXTURE_TEST_CASE(placeholder_many_hashes_test, placeholder_performance_test<2>) {
     run_placeholder_perf_test(
         "Many hashes performance test",
-        "../libs/zk/test/systems/plonk/placeholder/data/many_hashes/many_hashes_circuit.crct",
-        "../libs/zk/test/systems/plonk/placeholder/data/many_hashes/many_hashes_assignment.tbl"
+        "../libs/actor/zk/test/systems/plonk/placeholder/data/many_hashes/many_hashes_circuit.crct",
+        "../libs/actor/zk/test/systems/plonk/placeholder/data/many_hashes/many_hashes_assignment.tbl"
     );
 }
 

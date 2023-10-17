@@ -40,6 +40,7 @@
 #include <nil/actor/zk/commitments/batched_commitment.hpp>
 #include <nil/actor/zk/commitments/detail/polynomial/basic_fri.hpp>
 
+
 namespace nil {
     namespace actor {
         namespace zk {
@@ -50,6 +51,7 @@ namespace nil {
                 class lpc_commitment_scheme:public polys_evaluator<typename LPCScheme::params_type, typename LPCScheme::commitment_type, PolynomialType>{
                 public:
                     using field_type = typename LPCScheme::field_type;
+                    using value_type = typename field_type::value_type;
                     using params_type = typename LPCScheme::params_type;
                     using precommitment_type = typename LPCScheme::precommitment_type;
                     using commitment_type = typename LPCScheme::commitment_type;
@@ -65,7 +67,7 @@ namespace nil {
                 private:
                     std::map<std::size_t, precommitment_type> _trees;
                     typename fri_type::params_type _fri_params;
-                    typename field_type::value_type _etha;
+                    value_type _etha;
                     std::map<std::size_t, bool> _batch_fixed;
                 public:
                     lpc_commitment_scheme(const typename fri_type::params_type &fri_params){
@@ -78,7 +80,8 @@ namespace nil {
 
                     commitment_type commit(std::size_t index){
                         this->state_commited(index);
-                        _trees[index] = nil::actor::zk::algorithms::precommit<fri_type>(this->_polys[index], _fri_params.D[0], _fri_params.step_list.front()).get();
+                        _trees[index] = nil::actor::zk::algorithms::precommit<fri_type>(
+                            this->_polys[index], _fri_params.D[0], _fri_params.step_list.front()).get();
                         return _trees[index].root();
                     }
 
@@ -88,12 +91,15 @@ namespace nil {
                     }
 
                     proof_type proof_eval(transcript_type &transcript){
-                        for( auto const&it: _batch_fixed){
+
+                        for(auto const& it: _batch_fixed) {
                             if(it.second){
                                 this->append_eval_point(it.first, _etha);
                             }
                         }
+
                         this->eval_polys();
+
                         BOOST_ASSERT(this->_points.size() == this->_polys.size());
                         BOOST_ASSERT(this->_points.size() == this->_z.get_batches_num());
 
@@ -104,7 +110,8 @@ namespace nil {
                         // Prepare z-s and combined_Q;
                         auto theta = transcript.template challenge<field_type>();
                         poly_type combined_Q;
-                        if constexpr (std::is_same<math::polynomial_dfs<typename field_type::value_type>, PolynomialType>::value
+
+                        if constexpr (std::is_same<math::polynomial_dfs<value_type>, PolynomialType>::value
                         ) {
                             bool first = true;
                             // prepare U and V
@@ -112,21 +119,23 @@ namespace nil {
                                 auto b_ind = it.first;
                                 BOOST_ASSERT(this->_points[b_ind].size() == this->_polys[b_ind].size());
                                 BOOST_ASSERT(this->_points[b_ind].size() == this->_z.get_batch_size(b_ind));
-                                for( std::size_t poly_ind = 0; poly_ind < this->_polys[b_ind].size(); poly_ind++){
+
+                                for( std::size_t poly_ind = 0; poly_ind < this->_polys[b_ind].size(); poly_ind++) {
                                     // All evaluation points are filled successfully.
-                                    auto points = this->_points[b_ind][poly_ind];
+                                    auto& points = this->_points[b_ind][poly_ind];
                                     BOOST_ASSERT(points.size() == this->_z.get_poly_points_number(b_ind, poly_ind));
 
-                                    math::polynomial<typename field_type::value_type> V = this->get_V(this->_points[b_ind][poly_ind]);
-                                    math::polynomial<typename field_type::value_type> U =  this->get_U(b_ind, poly_ind);
+                                    std::vector<math::polynomial<value_type>> V_multipliers = this->get_V_multipliers(points);
+                                    math::polynomial<value_type> U = this->get_U(b_ind, poly_ind);
 
-                                    math::polynomial_dfs<typename field_type::value_type> U_dfs(0, _fri_params.D[0]->size());
-                                    U_dfs.from_coefficients(U);
+                                    math::polynomial<value_type> g_normal(this->_polys[b_ind][poly_ind].coefficients());
+                                    math::polynomial<value_type> Q = g_normal - U;
 
-                                    math::polynomial<typename field_type::value_type> g_normal(this->_polys[b_ind][poly_ind].coefficients());
-                                    math::polynomial<typename field_type::value_type> Q = g_normal - this->get_U(b_ind, poly_ind);
-                                    Q = Q / this->get_V(this->_points[b_ind][poly_ind]);
-                                    math::polynomial_dfs<typename field_type::value_type> Q_dfs(0, _fri_params.D[0]->size());
+                                    for (const auto& V_mult: V_multipliers) {
+                                        Q /= V_mult;
+                                    }
+
+                                    math::polynomial_dfs<value_type> Q_dfs(0, _fri_params.D[0]->size());
                                     Q_dfs.from_coefficients(Q);
 
                                     if (first) {
@@ -146,16 +155,21 @@ namespace nil {
                                 BOOST_ASSERT(this->_points[b_ind].size() == this->_polys[b_ind].size());
                                 BOOST_ASSERT(this->_points[b_ind].size() == this->_z.get_batch_size(b_ind));
                                 for( std::size_t poly_ind = 0; poly_ind < this->_polys[b_ind].size(); poly_ind++){
+
                                     // All evaluation points are filled successfully.
-                                    auto points = this->_points[b_ind][poly_ind];
+                                    const auto& points = this->_points[b_ind][poly_ind];
                                     BOOST_ASSERT(points.size() == this->_z.get_poly_points_number(b_ind, poly_ind));
 
-                                    math::polynomial<typename field_type::value_type> V = this->get_V(this->_points[b_ind][poly_ind]);
-                                    math::polynomial<typename field_type::value_type> U =  this->get_U(b_ind, poly_ind);
+                                    std::vector<math::polynomial<value_type>> V_multipliers = this->get_V_multipliers(points);
+                                    math::polynomial<value_type> U =  this->get_U(b_ind, poly_ind);
 
-                                    math::polynomial<typename field_type::value_type> g_normal = this->_polys[b_ind][poly_ind];
-                                    math::polynomial<typename field_type::value_type> Q = g_normal - U;
-                                    Q = Q / V;
+                                    const math::polynomial<value_type> g_normal = this->_polys[b_ind][poly_ind];
+                                    math::polynomial<value_type> Q = g_normal - U;
+
+                                    for (const auto& V_mult: V_multipliers) {
+                                        Q /= V_mult;
+                                    }
+
                                     if (first) {
                                         first = false;
                                         combined_Q = Q;
@@ -202,30 +216,30 @@ namespace nil {
                         }
 
                         // List of unique eval points set. [id=>points]
-                        auto unique_points = this->get_unique_points_list();
-                        // Point identifier for each polynomial. poly=>id
                         typename std::map<std::size_t, std::vector<std::size_t>> eval_map = this->get_eval_map(unique_points);
                         // combined U for each polynomials with id eval points. id=>eval_points.
-                        typename std::vector<math::polynomial<typename field_type::value_type>> combined_U;
+                        typename std::vector<math::polynomial<value_type>> combined_U;
                         // V for each polynoial
-                        typename std::vector<math::polynomial<typename field_type::value_type>> denominators;
+                        typename std::vector<math::polynomial<value_type>> denominators;
 
-                        typename field_type::value_type theta = transcript.template challenge<field_type>();
+                        value_type theta = transcript.template challenge<field_type>();
 
                         combined_U.resize(unique_points.size());
                         denominators.resize(unique_points.size());
+
                         // For each eval_point compute combined_U
-                        for(std::size_t point_index = 0; point_index < unique_points.size(); point_index++ ){
+                        for(std::size_t point_index = 0; point_index < unique_points.size(); point_index++) {
                             // Compute V
                             denominators[point_index] = this->get_V(unique_points[point_index]);
                             combined_U[point_index] = {0};
 
                             for( auto const &it: this->_points){
                                 auto k = it.first;
-                                for( std::size_t i = 0; i < proof.z.get_batch_size(k); i++ ){
-                                    combined_U[point_index] =  combined_U[point_index] * theta;
-                                    if(eval_map[k][i] == point_index){
-                                        combined_U[point_index] = combined_U[point_index] + this->get_U(k,i);
+                                for (std::size_t i = 0; i < proof.z.get_batch_size(k); i++) {
+                                    combined_U[point_index] *= theta;
+
+                                    if (eval_map[k][i] == point_index) {
+                                        combined_U[point_index] += this->get_U(k, i);
                                     }
                                 }
                             }
