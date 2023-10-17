@@ -33,7 +33,24 @@
 #include <iostream>
 #include <fstream>
 
-#include <nil/sha2.hpp>
+#include <nil/actor/testing/test_case.hh>
+#include <nil/actor/testing/thread_test_case.hh>
+
+#include <nil/crypto3/algebra/curves/bls12.hpp>
+#include <nil/crypto3/algebra/fields/arithmetic_params/bls12.hpp>
+#include <nil/crypto3/algebra/curves/pallas.hpp>
+#include <nil/crypto3/algebra/fields/arithmetic_params/pallas.hpp>
+#include <nil/crypto3/algebra/random_element.hpp>
+
+#include <nil/crypto3/math/algorithms/unity_root.hpp>
+#include <nil/actor/math/polynomial/lagrange_interpolation.hpp>
+#include <nil/actor/math/algorithms/calculate_domain_set.hpp>
+
+#include <nil/crypto3/random/algebraic_engine.hpp>
+
+#include <nil/crypto3/hash/algorithm/hash.hpp>
+#include <nil/crypto3/hash/md5.hpp>
+#include <nil/crypto3/hash/sha2.hpp>
 #include <nil/crypto3/hash/keccak.hpp>
 
 #include <nil/actor/zk/snark/systems/plonk/placeholder/prover.hpp>
