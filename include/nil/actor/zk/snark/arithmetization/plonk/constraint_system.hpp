@@ -56,11 +56,17 @@ namespace nil {
                 struct plonk_constraint_system {
                     typedef std::vector<plonk_gate<FieldType, plonk_constraint<FieldType>>> gates_container_type;
                     typedef plonk_variable<typename FieldType::value_type> variable_type;
+                    typedef plonk_constraint<FieldType> constraint_type;
                     typedef std::vector<plonk_copy_constraint<FieldType>> copy_constraints_container_type;
                     typedef std::vector<plonk_lookup_gate<FieldType, plonk_lookup_constraint<FieldType>>> lookup_gates_container_type;
                     typedef plonk_lookup_table<FieldType> lookup_table_type;
                     typedef std::vector<lookup_table_type> lookup_tables_type;
                     typedef std::vector<plonk_variable<typename FieldType::value_type>> public_input_gate_type;
+                    typedef math::expression_max_degree_visitor<variable_type> degree_visitor_type;
+                    typedef math::expression<variable_type> expression_type;
+                    typedef math::term<variable_type> term_type;
+                    typedef math::binary_arithmetic_operation<variable_type> binary_operation_type;
+                    typedef math::pow_operation<variable_type> pow_operation_type;
 
                 protected:
                     gates_container_type _gates;
@@ -78,7 +84,7 @@ namespace nil {
                                             const lookup_gates_container_type &lookup_gates = {},
                                             const lookup_tables_type &lookup_tables = {}) :
                         _gates(gates),
-                        _copy_constraints(copy_constraints), 
+                        _copy_constraints(copy_constraints),
                         _lookup_gates(lookup_gates),
                         _lookup_tables(lookup_tables)
                     {
@@ -132,7 +138,7 @@ namespace nil {
                     std::size_t sorted_lookup_columns_number() const {
                         if(_lookup_gates.size() == 0){
                             return 0;
-                        }   
+                        }
                         return lookup_options_num() + lookup_constraints_num();
                     }
 
@@ -148,6 +154,24 @@ namespace nil {
                         std::size_t result = 0;
                         for(std::size_t i = 0; i < _lookup_gates.size(); ++i) {
                             result += _lookup_gates[i].constraints.size();
+                        }
+                        return result;
+                    }
+
+                    std::size_t lookup_expressions_num() const{
+                        std::size_t result = 0;
+                        for(std::size_t i = 0; i < _lookup_gates.size(); ++i) {
+                            for(std::size_t j = 0; j < _lookup_gates[i].constraints.size(); ++j) {
+                                result += _lookup_gates[i].constraints[j].lookup_input.size();
+                            }
+                        }
+                        return result;
+                    }
+
+                    std::size_t lookup_tables_columns_num() const{
+                        std::size_t result = 0;
+                        for(std::size_t i = 0; i < _lookup_tables.size(); ++i) {
+                            result += _lookup_tables[i].lookup_options[0].size() * _lookup_tables[i].lookup_options.size();
                         }
                         return result;
                     }

@@ -22,6 +22,7 @@ cm_test_link_libraries(${CMAKE_WORKSPACE_NAME}_${CURRENT_PROJECT_NAME}
         marshalling::crypto3_algebra
         marshalling::crypto3_zk
 
+        crypto3::transpiler
         ${Boost_LIBRARIES})
 
 function(actor_add_test test)
@@ -57,6 +58,7 @@ function(actor_add_test test)
             crypto3::blueprint
             crypto3::math
             crypto3::multiprecision
+            crypto3::transpiler
 
             ${Boost_LIBRARIES})
 

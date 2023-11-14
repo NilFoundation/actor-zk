@@ -56,6 +56,7 @@
 #include <nil/crypto3/hash/md5.hpp>
 #include <nil/crypto3/hash/sha2.hpp>
 #include <nil/crypto3/hash/keccak.hpp>
+#include <nil/crypto3/hash/poseidon.hpp>
 
 #include <nil/actor/zk/snark/systems/plonk/placeholder/prover.hpp>
 #include <nil/actor/zk/snark/systems/plonk/placeholder/verifier.hpp>
@@ -82,6 +83,9 @@
 #include <nil/crypto3/marshalling/zk/types/plonk/gate.hpp>
 #include <nil/crypto3/marshalling/zk/types/plonk/constraint_system.hpp>
 #include <nil/crypto3/marshalling/zk/types/placeholder/proof.hpp>
+
+#include <nil/blueprint/transpiler/util.hpp>
+#include <nil/blueprint/transpiler/recursive_verifier_generator.hpp>
 
 #include "circuits.hpp"
 
@@ -118,7 +122,7 @@ class placeholder_performance_test_base {
         typename fri_type::params_type params;
         math::polynomial<typename FieldType::value_type> q = {0, 0, 1};
 
-        constexpr std::size_t expand_factor = 7;
+        constexpr std::size_t expand_factor = 2;
 
         std::size_t r = degree_log - 1;
 
@@ -141,37 +145,39 @@ public:
     using curve_type = nil::crypto3::algebra::curves::pallas;
     using field_type = typename curve_type::base_field_type;
 
-    using hash_type = nil::crypto3::hashes::keccak_1600<256>;
+//    using hash_type = nil::crypto3::hashes::keccak_1600<256>;
+    using policy = nil::crypto3::hashes::detail::mina_poseidon_policy<field_type>;
+    using hash_type = nil::crypto3::hashes::poseidon<policy>;
 
     static constexpr std::size_t m = 2;
 
-    // These values were taken from the transpiler code.
-    static constexpr std::size_t WitnessColumns = 15;
+    // These values were taken from the transpilefr code.
+    static constexpr std::size_t WitnessColumns = 9;
     static constexpr std::size_t PublicInputColumns = 1;
-    static constexpr std::size_t ConstantColumns = 5;
-    static constexpr std::size_t SelectorColumns = 35;
+    static constexpr std::size_t ConstantColumns =  100;
+    static constexpr std::size_t SelectorColumns = 50;
 
     using lpc_params_type = commitments::list_polynomial_commitment_params<
-        hash_type, hash_type, lambda, m, true /* use grinding */>;
+        hash_type, hash_type, lambda, m /*true,  use grinding */>;
 
-     using arithmetization_params_type = zk::snark::plonk_arithmetization_params<
+     using arithmetization_params_type = nil::actor::zk::snark::plonk_arithmetization_params<
         WitnessColumns, PublicInputColumns, ConstantColumns, SelectorColumns>;
 
     using lpc_type = commitments::list_polynomial_commitment<field_type, lpc_params_type>;
     using lpc_scheme_type = typename commitments::lpc_commitment_scheme<lpc_type>;
     using circuit_params_type = placeholder_circuit_params<field_type, arithmetization_params_type>;
-    using lpc_placeholder_params_type = zk::snark::placeholder_params<circuit_params_type, lpc_scheme_type>;
-    using policy_type = zk::snark::detail::placeholder_policy<field_type, circuit_params_type>;
+    using lpc_placeholder_params_type = nil::actor::zk::snark::placeholder_params<circuit_params_type, lpc_scheme_type>;
+    using policy_type = nil::actor::zk::snark::detail::placeholder_policy<field_type, circuit_params_type>;
 
-    using constraint_system_type = zk::snark::plonk_constraint_system<field_type, arithmetization_params_type>;
-    using table_description_type = zk::snark::plonk_table_description<field_type, arithmetization_params_type>;
+    using constraint_system_type = nil::actor::zk::snark::plonk_constraint_system<field_type, arithmetization_params_type>;
+    using table_description_type = nil::actor::zk::snark::plonk_table_description<field_type, arithmetization_params_type>;
 
     using Endianness = nil::marshalling::option::big_endian;
     using TTypeBase = nil::marshalling::field_type<Endianness>;
     using column_type = zk::snark::plonk_column<field_type>;
 
     using circuit_marshalling_type = nil::crypto3::marshalling::types::plonk_constraint_system<TTypeBase, constraint_system_type>;
-    using assignment_table_type = zk::snark::plonk_table<field_type, arithmetization_params_type, column_type>;
+    using assignment_table_type = nil::actor::zk::snark::plonk_table<field_type, arithmetization_params_type, column_type>;
     using assignment_table_marshalling_type = nil::crypto3::marshalling::types::plonk_assignment_table<TTypeBase, assignment_table_type>;
 
     using columns_rotations_type = std::array<std::set<int>, arithmetization_params_type::total_columns>;
@@ -180,21 +186,25 @@ public:
     void run_placeholder_perf_test(std::string test_name, std::string circuit_file_path,
             std::string assignment_table_file_path) {
 
-        std::cout << std::endl << "Running '" << test_name << "' performance test" <<  std::endl;
+        std::cout << std::endl << "Running '" << test_name << "' performance test with smaller permutation" <<  std::endl;
 
         load_circuit(circuit_file_path);
+        std::cout << "Circuit is loaded" << std::endl;
         load_assignment_table(assignment_table_file_path);
+        std::cout << "Assignment table is loaded" << std::endl;
 
         compute_columns_rotations();
 
         std::cout << "rows_amount = " << table_description.rows_amount << std::endl;
+        std::cout << "usable_rows = " << table_description.usable_rows_amount << std::endl;
 
         std::size_t table_rows_log = std::ceil(std::log2(table_description.rows_amount));
         typename lpc_type::fri_type::params_type fri_params =
             create_fri_params<typename lpc_type::fri_type, field_type>(table_rows_log);
 
         std::size_t permutation_size = table_description.witness_columns +
-            table_description.public_input_columns + table_description.constant_columns;
+            table_description.public_input_columns + 2;
+        std::cout << "small permutation_size = " << permutation_size << std::endl;
 
         std::cout << "table_rows_log = " << table_rows_log << std::endl;
 
@@ -207,6 +217,20 @@ public:
             );
         std::cout << "max_gates_degree = " << lpc_preprocessed_public_data.common_data.max_gates_degree << std::endl;
 
+        {
+            std::string cpp_path = "./placeholder_verifier.cpp";
+            std::ofstream output_file;
+            output_file.open(cpp_path);
+            output_file << nil::blueprint::recursive_verifier_generator<
+                lpc_placeholder_params_type,
+                nil::actor::zk::snark::placeholder_proof<field_type, lpc_placeholder_params_type>,
+                typename nil::actor::zk::snark::placeholder_public_preprocessor<field_type, lpc_placeholder_params_type>::preprocessed_data_type::common_data_type
+            >::generate_recursive_verifier(
+                constraint_system, lpc_preprocessed_public_data.common_data, lpc_scheme, permutation_size
+            );
+            output_file.close();
+        }
+
         auto lpc_preprocessed_private_data = placeholder_private_preprocessor<field_type, lpc_placeholder_params_type>::process(
                 constraint_system, assignments.private_table(), table_description
             );
@@ -215,6 +239,17 @@ public:
             lpc_preprocessed_public_data, lpc_preprocessed_private_data, table_description,
             constraint_system, assignments, lpc_scheme
         );
+        {
+            std::string inp_path = "./placeholder_verifier.inp";
+            std::ofstream output_file;
+            output_file.open(inp_path);
+            output_file << nil::blueprint::recursive_verifier_generator<
+                lpc_placeholder_params_type,
+                nil::actor::zk::snark::placeholder_proof<field_type, lpc_placeholder_params_type>,
+                typename nil::actor::zk::snark::placeholder_public_preprocessor<field_type, lpc_placeholder_params_type>::preprocessed_data_type::common_data_type
+            >::generate_input({}, lpc_preprocessed_public_data.common_data.vk, lpc_proof);
+            output_file.close();
+        }
 
         bool verifier_res = placeholder_verifier<field_type, lpc_placeholder_params_type>::process(
             lpc_preprocessed_public_data, lpc_proof, constraint_system, lpc_scheme
@@ -347,6 +382,14 @@ ACTOR_FIXTURE_TEST_CASE(placeholder_many_hashes_test, placeholder_performance_te
     );
 }
 
+ACTOR_FIXTURE_TEST_CASE(placeholder_sha256_test, placeholder_performance_test<2>) {
+    run_placeholder_perf_test(
+        "SHA2-256 component",
+        "../libs/actor/zk/test/systems/plonk/placeholder/data/sha256/circuit.crct",
+        "../libs/actor/zk/test/systems/plonk/placeholder/data/sha256/assignment.tbl"
+    );
+}
+
 //BOOST_AUTO_TEST_SUITE_END()
 
 //BOOST_AUTO_TEST_SUITE(placeholder_prover_test_suite)
@@ -370,7 +413,7 @@ struct placeholder_fibonacci_params {
     using arithmetization_params =
         plonk_arithmetization_params<witness_columns, public_input_columns, constant_columns, selector_columns>;
 
-    constexpr static const std::size_t lambda = 1;
+    constexpr static const std::size_t lambda = 20;
     constexpr static const std::size_t m = 2;
 };
 

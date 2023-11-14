@@ -28,7 +28,7 @@
 #ifndef ACTOR_ZK_PLONK_LOOKUP_TABLE_HPP
 #define ACTOR_ZK_PLONK_LOOKUP_TABLE_HPP
 
-#include <nil/crypto3/zk/math/expression_visitors.hpp>
+#include <nil/actor/zk/math/expression_visitors.hpp>
 #include <nil/actor/zk/snark/arithmetization/plonk/constraint.hpp>
 #include <nil/actor/zk/snark/arithmetization/plonk/variable.hpp>
 

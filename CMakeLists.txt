@@ -178,7 +178,8 @@ target_link_libraries(${CMAKE_WORKSPACE_NAME}_${CURRENT_PROJECT_NAME} INTERFACE
         crypto3::multiprecision
 
         ${CMAKE_WORKSPACE_NAME}::containers
-        ${CMAKE_WORKSPACE_NAME}::math)
+        ${CMAKE_WORKSPACE_NAME}::math
+        )
 
 cm_deploy(TARGETS ${CMAKE_WORKSPACE_NAME}_${CURRENT_PROJECT_NAME}
         INCLUDE include
