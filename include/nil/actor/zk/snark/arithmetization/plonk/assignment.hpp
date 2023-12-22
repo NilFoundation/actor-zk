@@ -79,6 +79,10 @@ namespace nil {
                         return _witnesses[index];
                     }
 
+                    witnesses_container_type move_witnesses() {
+                        return std::move(_witnesses);
+                    }
+
                     const witnesses_container_type& witnesses() const {
                         return _witnesses;
                     }
@@ -145,6 +149,10 @@ namespace nil {
                         return _public_inputs[index];
                     }
 
+                    public_input_container_type move_public_inputs() const {
+                        return std::move(_public_inputs);
+                    }
+
                     const public_input_container_type& public_inputs() const {
                         return _public_inputs;
                     }
@@ -162,6 +170,10 @@ namespace nil {
                         return _constants[index];
                     }
 
+                    constant_container_type move_constants() const {
+                        return std::move(_constants);
+                    }
+
                     const constant_container_type& constants() const {
                         return _constants;
                     }
@@ -177,6 +189,10 @@ namespace nil {
                     const ColumnType& selector(std::uint32_t index) const {
                         assert(index < selectors_amount());
                         return _selectors[index];
+                    }
+
+                    selector_container_type move_selectors() const {
+                        return std::move(_selectors);
                     }
 
                     const selector_container_type& selectors() const {
@@ -248,6 +264,7 @@ namespace nil {
                     using selector_container_type = typename public_table_type::selector_container_type;
 
                 protected:
+                    // These are normally created by the assigner, or read from a file.
                     private_table_type _private_table;
                     public_table_type _public_table;
 
@@ -307,8 +324,16 @@ namespace nil {
                         throw std::out_of_range("Private table index out of range.");
                     }
 
+                    private_table_type move_private_table() {
+                        return std::move(_private_table);
+                    }
+
                     const private_table_type& private_table() const {
                         return _private_table;
+                    }
+
+                    public_table_type move_public_table() {
+                        return std::move(_public_table);
                     }
 
                     const public_table_type& public_table() const {

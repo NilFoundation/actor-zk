@@ -104,12 +104,24 @@ namespace nil {
                             std::chrono::time_point<std::chrono::high_resolution_clock> start;
                             std::string name;
                     };
+ 
+                    // Helps to monitor (actual) memory consumption by actor code.
+                    void monitor_memory_usage() {
+                        auto stats = nil::actor::memory::stats();
+                        // Extract information from stats object and log/display
+                        std::cout << "Memory Usage:\n"
+                                  << "Total memory in GB: " << stats.total_memory() / 1000000000<< std::endl
+                                  << "Total used (in GB) " << (stats.total_memory() - stats.free_memory()) / 1000000000 << std::endl
+                                  << "Number of reclaims performed due to low memory: " << stats.reclaims() << std::endl;
+                }
 
                 }    // namespace detail
             }    // namespace snark
         }        // namespace zk
     }            // namespace actor
 }    // namespace nil
+
+#define ZK_PLACEHOLDER_PROFILING_ENABLED
 
 #ifdef ZK_PLACEHOLDER_PROFILING_ENABLED
     #define PROFILE_PLACEHOLDER_SCOPE(name) \
