@@ -49,7 +49,7 @@ using namespace nil::actor::zk::commitments;
 
 ACTOR_THREAD_TEST_CASE(pow_basic_test) {
     using keccak = nil::crypto3::hashes::keccak_1600<256>;
-    constexpr std::uint8_t grinding_bits = 32;
+    constexpr std::uint8_t grinding_bits = 16;
     using pow_type = nil::actor::zk::commitments::proof_of_work<keccak, std::uint64_t, grinding_bits>;
     nil::actor::zk::transcript::fiat_shamir_heuristic_sequential<keccak> transcript;
     auto old_transcript_1 = transcript, old_transcript_2 = transcript;
@@ -65,17 +65,9 @@ ACTOR_THREAD_TEST_CASE(pow_basic_test) {
         bytes[j] = std::uint8_t( (result >> (sizeof(result)-1-j)*8) & 0xFF);
     }
 
-    std::cout << "test transcript input:" << std::hex << std::setfill('0');
-    for(auto x:bytes) {
-        std::cout << std::setw(2) << std::size_t(x) << " ";
-    }
-    std::cout << std::endl;
-
     old_transcript_2(bytes);
     auto chal = old_transcript_2.template int_challenge<std::uint64_t>();
 
-    std::cout << "mask     : " << std::setw(sizeof(mask)*2) << mask << std::endl;
-    std::cout << "challenge: " << std::setw(sizeof(mask)*2) << chal << std::endl;
     BOOST_CHECK((chal & mask) == 0);
 
     // check that random stuff doesn't pass verify
