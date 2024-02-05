@@ -109,16 +109,15 @@ namespace nil {
                 };
 
                 template<typename TranscriptHashType,
-                    std::uint8_t grinding_bits,
                     typename output_type,
+                    std::uint8_t grinding_bits,
                     typename Enable = void>
                 class proof_of_work;
 
                 template<typename TranscriptHashType,
-                    std::uint8_t grinding_bits,
                     typename output_type,
-                    typename std::enable_if_t<!crypto3::hashes::is_poseidon<TranscriptHashType>::value> >
-                class proof_of_work {
+                    std::uint8_t grinding_bits>
+                class proof_of_work<TranscriptHashType, output_type, grinding_bits, typename std::enable_if_t<!crypto3::hashes::is_poseidon<TranscriptHashType>::value>> {
                 public:
                     constexpr static output_type mask = (grinding_bits > 0 ?
                             ((output_type(2) << grinding_bits ) - 1) << (sizeof(output_type)*8 - grinding_bits)
@@ -206,8 +205,8 @@ namespace nil {
                     std::uint8_t grinding_bits>
                 class proof_of_work<
                     TranscriptHashType,
-                    grinding_bits,
                     typename TranscriptHashType::policy_type::field_type::value_type,
+                    grinding_bits,
                     typename std::enable_if_t<crypto3::hashes::is_poseidon<TranscriptHashType>::value> > {
                 public:
                     using transcript_hash_type = TranscriptHashType;

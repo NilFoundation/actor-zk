@@ -50,7 +50,7 @@ using namespace nil::actor::zk::commitments;
 ACTOR_THREAD_TEST_CASE(pow_basic_test) {
     using keccak = nil::crypto3::hashes::keccak_1600<512>;
     constexpr std::uint8_t grinding_bits = 16;
-    using pow_type = nil::actor::zk::commitments::proof_of_work<keccak, grinding_bits, std::uint64_t>;
+    using pow_type = nil::actor::zk::commitments::proof_of_work<keccak, std::uint64_t, grinding_bits>;
     nil::actor::zk::transcript::fiat_shamir_heuristic_sequential<keccak> transcript;
     auto old_transcript_1 = transcript, old_transcript_2 = transcript;
 
@@ -79,7 +79,7 @@ ACTOR_THREAD_TEST_CASE(pow_basic_test) {
     BOOST_CHECK((chal & mask) == 0);
 
     // check that random stuff doesn't pass verify
-    using hard_pow_type = nil::actor::zk::commitments::proof_of_work<keccak, 63, std::uint64_t>;
+    using hard_pow_type = nil::actor::zk::commitments::proof_of_work<keccak, std::uint64_t, 63>;
     BOOST_CHECK(!hard_pow_type::verify(old_transcript_1, result));
 }
 
@@ -119,7 +119,7 @@ ACTOR_THREAD_TEST_CASE(special_poseidon_test) {
     using integral_type = typename field_type::integral_type;
     using policy = nil::crypto3::hashes::detail::mina_poseidon_policy<field_type>;
     using poseidon = nil::crypto3::hashes::poseidon<policy>;
-    using pow_type = nil::actor::zk::commitments::proof_of_work<poseidon, 16>;
+    using pow_type = nil::actor::zk::commitments::proof_of_work<poseidon, typename poseidon::policy_type::field_type::value_type, 16>;
 
     const integral_type expected_mask = integral_type(0xFFFF000000000000) << (field_type::modulus_bits - 64);
     nil::actor::zk::transcript::fiat_shamir_heuristic_sequential<poseidon> transcript;
@@ -134,7 +134,7 @@ ACTOR_THREAD_TEST_CASE(special_poseidon_test) {
     auto chal = old_transcript_2.template challenge<field_type>();
     BOOST_CHECK((integral_type(chal.data) & expected_mask) == 0);
 
-    using hard_pow_type = nil::actor::zk::commitments::proof_of_work<poseidon, 32>;
+    using hard_pow_type = nil::actor::zk::commitments::proof_of_work<poseidon, typename poseidon::policy_type::field_type::value_type, 16>;
     // check that random stuff doesn't pass verify
     BOOST_CHECK(!hard_pow_type::verify(old_transcript_1, result));
 }
