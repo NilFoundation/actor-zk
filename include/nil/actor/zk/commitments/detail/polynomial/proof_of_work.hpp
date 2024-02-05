@@ -108,11 +108,16 @@ namespace nil {
                     }
                 };
 
+                template<typename TranscriptHashType,
+                    std::uint8_t grinding_bits,
+                    typename output_type,
+                    typename Enable = void>
+                class proof_of_work;
 
                 template<typename TranscriptHashType,
-                    typename output_type = std::uint32_t,
-                    std::uint8_t grinding_bits = 16,
-                    typename Enable = void>
+                    std::uint8_t grinding_bits,
+                    typename output_type,
+                    typename std::enable_if_t<!crypto3::hashes::is_poseidon<TranscriptHashType>::value> >
                 class proof_of_work {
                 public:
                     constexpr static output_type mask = (grinding_bits > 0 ?
@@ -197,19 +202,19 @@ namespace nil {
                 };
 
                 /* Specialization for poseidon */
-                template<typename TranscriptHashType, 
-                    typename output_type,
+                template<typename TranscriptHashType,
                     std::uint8_t grinding_bits>
                 class proof_of_work<
                     TranscriptHashType,
-                    output_type,
                     grinding_bits,
+                    typename TranscriptHashType::policy_type::field_type::value_type,
                     typename std::enable_if_t<crypto3::hashes::is_poseidon<TranscriptHashType>::value> > {
                 public:
                     using transcript_hash_type = TranscriptHashType;
                     using transcript_type = transcript::fiat_shamir_heuristic_sequential<transcript_hash_type>;
-//                    using output_type = typename transcript_hash_type::field_type;
-                    using value_type = typename output_type::value_type;
+                    using field_type = typename transcript_hash_type::policy_type::field_type;
+                    using output_type = typename field_type::value_type;
+//                    using value_type = typename output_type::value_type;
                     using integral_type = typename output_type::integral_type;
                     constexpr static integral_type mask = (grinding_bits > 0 ?
                             ((integral_type(2) << (grinding_bits-1) ) - 1) << (sizeof(output_type)*8 - grinding_bits)
@@ -223,7 +228,7 @@ namespace nil {
 
                     static inline output_type generate(transcript_type &transcript) {
 
-                        value_type pow_seed = 0;
+                        output_type pow_seed = 0;
                         /* Enough work for ~ two minutes on 48 cores */
                         std::size_t per_block = 1<<23;
 
@@ -243,7 +248,7 @@ namespace nil {
 
                                         transcript_type tmp_transcript = transcript;
                                         tmp_transcript(pow_seed + i);
-                                        integral_type pow_result = integral_type(tmp_transcript.template challenge<output_type>().data);
+                                        integral_type pow_result = integral_type(tmp_transcript.template challenge<field_type>().data);
                                         if ( ((pow_result & mask) == 0) && !challenge_found ) {
                                             challenge_found = true;
                                             pow_value_offset = i;
@@ -259,13 +264,13 @@ namespace nil {
                             pow_seed += per_block;
                         }
                         transcript(pow_seed + (std::size_t)pow_value_offset);
-                        transcript.template challenge<output_type>();
+                        transcript.template challenge<field_type>();
                         return output_type(pow_seed + (std::size_t)pow_value_offset);
                     }
 
                     static inline bool verify(transcript_type &transcript, output_type const& proof_of_work) {
                         transcript(proof_of_work);
-                        integral_type result = integral_type(transcript.template challenge<output_type>().data);
+                        integral_type result = integral_type(transcript.template challenge<field_type>().data);
                         return ((result & mask) == 0);
                     }
                 };
