@@ -41,16 +41,13 @@ namespace nil {
             namespace commitments {
 
                 template<typename TranscriptHashType,
-                    typename output_type,
-                    std::uint8_t grinding_bits,
-                    typename Enable = void>
-                class proof_of_work;
-
-                template<typename TranscriptHashType,
-                    typename output_type,
-                    std::uint8_t grinding_bits>
-                class proof_of_work<TranscriptHashType, output_type, grinding_bits, typename std::enable_if_t<!crypto3::hashes::is_poseidon<TranscriptHashType>::value>> {
+                    typename _output_type = uint64_t,
+                    std::uint8_t grinding_bits = 16,
+                    typename Enable = void
+                    >
+                class proof_of_work {
                 public:
+                    typedef _output_type output_type;
                     constexpr static output_type mask = (grinding_bits > 0 ?
                             ((output_type(2) << grinding_bits ) - 1) << (sizeof(output_type)*8 - grinding_bits)
                             : 0);
@@ -135,17 +132,19 @@ namespace nil {
 
                 /* Specialization for poseidon */
                 template<typename TranscriptHashType,
-                    std::uint8_t grinding_bits>
+                    std::uint8_t grinding_bits
+                    >
                 class proof_of_work<
                     TranscriptHashType,
                     typename TranscriptHashType::policy_type::field_type::value_type,
                     grinding_bits,
-                    typename std::enable_if_t<crypto3::hashes::is_poseidon<TranscriptHashType>::value> > {
+                    typename std::enable_if_t<crypto3::hashes::is_poseidon<TranscriptHashType>::value>
+                    >  {
                 public:
                     using transcript_hash_type = TranscriptHashType;
                     using transcript_type = transcript::fiat_shamir_heuristic_sequential<transcript_hash_type>;
                     using field_type = typename transcript_hash_type::policy_type::field_type;
-                    using output_type = typename field_type::value_type;
+                    typedef typename field_type::value_type output_type;
                     using integral_type = typename output_type::integral_type;
                     constexpr static integral_type mask = (grinding_bits > 0 ?
                             ((integral_type(2) << (grinding_bits-1) ) - 1) << (field_type::modulus_bits - grinding_bits)
