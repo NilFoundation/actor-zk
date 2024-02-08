@@ -96,6 +96,7 @@ namespace nil {
                         math::polynomial_dfs<typename FieldType::value_type> V_P(basic_domain->size() - 1,
                                                                                  basic_domain->size());
 
+std::cout << "Permutation arg 1" << std::endl;
                         std::vector<math::polynomial_dfs<typename FieldType::value_type>> g_v = S_id;
                         std::vector<math::polynomial_dfs<typename FieldType::value_type>> h_v = S_sigma;
                         for (std::size_t i = 0; i < S_id.size(); i++) {
@@ -114,6 +115,7 @@ namespace nil {
                             h_v[i] += column_polynomials[i];
                         }
 
+std::cout << "Permutation arg 2" << std::endl;
                         V_P[0] = FieldType::value_type::one();
                         for (std::size_t j = 1; j < basic_domain->size(); j++) {
                             typename FieldType::value_type nom = FieldType::value_type::one();
@@ -126,15 +128,21 @@ namespace nil {
                             V_P[j] = V_P[j - 1] * nom / denom;
                         }
 
+std::cout << "Permutation arg 3" << std::endl;
+
                         // 4. Compute and add commitment to $V_P$ to $\text{transcript}$.
                         // TODO: Better enumeration for polynomial batches
                         commitment_scheme.append_to_batch(PERMUTATION_BATCH, V_P);
 
+std::cout << "Permutation arg 4" << std::endl;
                         // 5. Calculate g_perm, h_perm
                         math::polynomial_dfs<typename FieldType::value_type> g =
                             math::polynomial_product<FieldType>(std::move(g_v));
+std::cout << "Permutation arg 5" << std::endl;
                         math::polynomial_dfs<typename FieldType::value_type> h =
                             math::polynomial_product<FieldType>(std::move(h_v));
+
+std::cout << "Permutation arg 6" << std::endl;
 
                         math::polynomial_dfs<typename FieldType::value_type> one_polynomial(
                             0, V_P.size(), FieldType::value_type::one());

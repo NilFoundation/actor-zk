@@ -133,6 +133,7 @@ namespace nil {
                         transcript(preprocessed_public_data.common_data.vk.constraint_system_with_params_hash);
                         transcript(preprocessed_public_data.common_data.vk.fixed_values_commitment);
 
+                        std::cout << "Prover 1\n";
                         // Setup commitment scheme. LPC adds an additional point here.
                         _commitment_scheme.setup(transcript, preprocessed_public_data.common_data.commitment_scheme_data);
                     }
@@ -140,6 +141,7 @@ namespace nil {
                     placeholder_proof<FieldType, ParamsType> process() {
                         PROFILE_PLACEHOLDER_SCOPE("Placeholder prover, total time");
 
+                        std::cout << "Prover 2\n";
                         // 2. Commit witness columns and public_input columns
                         _commitment_scheme.append_to_batch(VARIABLE_VALUES_BATCH, _polynomial_table->witnesses());
                         _commitment_scheme.append_to_batch(VARIABLE_VALUES_BATCH, _polynomial_table->public_inputs());
@@ -147,6 +149,7 @@ namespace nil {
                             PROFILE_PLACEHOLDER_SCOPE("variable_values_precommit_time");
                             _proof.commitments[VARIABLE_VALUES_BATCH] = _commitment_scheme.commit(VARIABLE_VALUES_BATCH);
                         }
+                        std::cout << "Prover 3\n";
                         transcript(_proof.commitments[VARIABLE_VALUES_BATCH]);
 
                         // 4. permutation_argument
