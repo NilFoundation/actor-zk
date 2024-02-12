@@ -256,9 +256,9 @@ namespace nil {
                         std::vector<polynomial_dfs_type> T_splitted_dfs(split_polynomial_size,
                             polynomial_dfs_type(0, _F_dfs[0].size(), FieldType::value_type::zero()));
 
-                        for (std::size_t k = 0; k < T_splitted.size(); k++) {
+                        parallel_for(0, T_splitted.size(), [&T_splitted, &T_splitted_dfs](std::size_t k) {
                             T_splitted_dfs[k].from_coefficients(T_splitted[k]);
-                        }
+                        });
 
                         return T_splitted_dfs;
                     }
@@ -271,20 +271,33 @@ namespace nil {
                             transcript.template challenges<FieldType, f_parts>();
 
                         // 7.2. Compute F_consolidated
-                        polynomial_dfs_type F_consolidated_dfs(
-                            0, _F_dfs[0].size(), FieldType::value_type::zero());
-                        for (std::size_t i = 0; i < f_parts; i++) {
-                            if (_F_dfs[i].is_zero()) {
-                                continue;
-                            }
-                            F_consolidated_dfs += alphas[i] * _F_dfs[i];
-                        }
+                        polynomial_dfs_type F_consolidated_dfs;
+                    {
+                    PROFILE_PLACEHOLDER_SCOPE("quotient_polynomial_time inner loop");
+                        std::vector<math::polynomial_dfs<typename FieldType::value_type>> F_consolidated_dfs_parts(f_parts);
 
-                        polynomial_type F_consolidated_normal(F_consolidated_dfs.coefficients());
+                        std::cout << "f_parts = " << f_parts << std::endl;
 
-                        polynomial_type T_consolidated =
+                        parallel_for(1, f_parts, 
+                            [this, &F_consolidated_dfs_parts, &alphas](std::size_t i) {
+                                F_consolidated_dfs_parts[i] = alphas[i] * this->_F_dfs[i];
+                        }, ThreadPool::PoolLevel::HIGH);
+
+                        F_consolidated_dfs = math::polynomial_sum<FieldType>(std::move(F_consolidated_dfs_parts));
+                    }
+
+                    polynomial_type F_consolidated_normal;
+                    {
+                    PROFILE_PLACEHOLDER_SCOPE("quotient_polynomial_time taking coefficients");
+                        F_consolidated_normal = F_consolidated_dfs.coefficients();
+                    }
+
+                    polynomial_type T_consolidated;
+                    {
+                    PROFILE_PLACEHOLDER_SCOPE("quotient_polynomial_time division");
+                        T_consolidated =
                             F_consolidated_normal / preprocessed_public_data.common_data.Z;
-
+                    }
                         return T_consolidated;
                     }
 
