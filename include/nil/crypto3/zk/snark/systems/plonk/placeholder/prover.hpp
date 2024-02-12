@@ -278,7 +278,7 @@ namespace nil {
 
                         std::cout << "f_parts = " << f_parts << std::endl;
 
-                        parallel_for(1, f_parts, 
+                        parallel_for(0, f_parts, 
                             [this, &F_consolidated_dfs_parts, &alphas](std::size_t i) {
                                 F_consolidated_dfs_parts[i] = alphas[i] * this->_F_dfs[i];
                         }, ThreadPool::PoolLevel::HIGH);
