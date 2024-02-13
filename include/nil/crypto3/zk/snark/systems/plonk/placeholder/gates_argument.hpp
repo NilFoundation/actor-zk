@@ -108,7 +108,7 @@ namespace nil {
                             [&variables, &variable_values_out, &assignments, &domain, &extended_domain, extended_domain_size](std::size_t i) {
                                 const auto& var = variables[i];
                                 // We may have variable values in required sizes in some cases.
-                                if (variable_values_out.find(var) != variable_values_out.end())
+                                if (variable_values_out[var].size() == extended_domain_size)
                                     return;
                                 polynomial_dfs_type assignment;
                                 switch (var.type) {
