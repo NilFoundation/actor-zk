@@ -168,69 +168,34 @@ namespace nil {
 
                         std::array<math::polynomial_dfs<typename FieldType::value_type>, argument_size> F_dfs;
 
-std::cout << "Computing F_dfs[0]" << std::endl;
-            { 
-            PROFILE_PLACEHOLDER_SCOPE("Lookup argument, computing F_dfs[0]");
                         F_dfs[0] = preprocessed_data.common_data.lagrange_0 * (one_polynomial - V_L);
-            }
-std::cout << "Computing F_dfs[1]" << std::endl;
-            {
-            PROFILE_PLACEHOLDER_SCOPE("Lookup argument, computing F_dfs[1]");
                         F_dfs[1] = preprocessed_data.q_last * ( V_L * V_L - V_L );
-            }
                         // Polynomial g is waaay too large, saving memory here, by making code very unreadable.
                         //F_dfs[2] = (one_polynomial - (preprocessed_data.q_last + preprocessed_data.q_blind)) *
                         //           (V_L_shifted * h - V_L * g);
-std::cout << "Computing g *= V_L" << std::endl;
-            {
-            PROFILE_PLACEHOLDER_SCOPE("Lookup argument, computing g *= V_L");
                         g *= V_L;
-            }
-std::cout << "Computing h *= V_L_shifted" << std::endl;
-            {
-            PROFILE_PLACEHOLDER_SCOPE("Lookup argument, computing h *= V_L_shifted");
                         h *= V_L_shifted;
-            }
-std::cout << "Computing g -= h" << std::endl;
-            {
-            PROFILE_PLACEHOLDER_SCOPE("Lookup argument, computing g -= h");
                         g -= h;
-            }
                         h = math::polynomial_dfs<typename FieldType::value_type>(); // just clean the memory of h.
-std::cout << "Computing g *= (preprocessed_data.q_last + prep..." << std::endl;
-            {
-            PROFILE_PLACEHOLDER_SCOPE("Lookup argument, computing g *= (preprocessed_data.q_last + preprocessed_data.q_blind) - one_polynomial");
                         g *= (preprocessed_data.q_last + preprocessed_data.q_blind) - one_polynomial;
-            }
                         F_dfs[2] = std::move(g);
 
-                        {
-                            PROFILE_PLACEHOLDER_SCOPE("calculation of F_dfs[3]");
-                            F_dfs[3] = zero_polynomial;
+                        F_dfs[3] = zero_polynomial;
 
-std::cout << "calculation of F_dfs[3] ----- " << std::endl;
-                            std::vector<typename FieldType::value_type> alpha_challenges(sorted.size() - 1);
-                            for (std::size_t i = 1; i < sorted.size(); ++i) {
-                                alpha_challenges[i - 1] = transcript.template challenge<FieldType>();
-                            }
-                            std::vector<math::polynomial_dfs<typename FieldType::value_type>> F_dfs_3_parts(sorted.size() -1);
-
-                            parallel_for(1, sorted.size(), [this, &F_dfs_3_parts, &alpha_challenges, &sorted](std::size_t i) {
-                                math::polynomial_dfs<typename FieldType::value_type> sorted_shifted = math::polynomial_shift(
-                                    sorted[i-1], this->preprocessed_data.common_data.usable_rows_amount, this->basic_domain->m);
-                                F_dfs_3_parts[i-1] = alpha_challenges[i-1] * this->preprocessed_data.common_data.lagrange_0 * 
-                                    (sorted[i] - sorted_shifted);
-                            }, ThreadPool::PoolLevel::HIGH);
-
-                            F_dfs[3] = math::polynomial_sum<FieldType>(std::move(F_dfs_3_parts));
+                        std::vector<typename FieldType::value_type> alpha_challenges(sorted.size() - 1);
+                        for (std::size_t i = 1; i < sorted.size(); ++i) {
+                            alpha_challenges[i - 1] = transcript.template challenge<FieldType>();
                         }
+                        std::vector<math::polynomial_dfs<typename FieldType::value_type>> F_dfs_3_parts(sorted.size() -1);
 
-/*                        for( std::size_t i = 0; i < basic_domain->m; i++){
-                            BOOST_CHECK( F_dfs[0].evaluate(basic_domain->get_domain_element(i)) == FieldType::value_type::zero() );
-                            BOOST_CHECK( F_dfs[1].evaluate(basic_domain->get_domain_element(i)) == FieldType::value_type::zero() );
-                            BOOST_CHECK( F_dfs[2].evaluate(basic_domain->get_domain_element(i)) == FieldType::value_type::zero() );
-                            BOOST_CHECK( F_dfs[3].evaluate(basic_domain->get_domain_element(i)) == FieldType::value_type::zero() );
-                        }*/
+                        parallel_for(1, sorted.size(), [this, &F_dfs_3_parts, &alpha_challenges, &sorted](std::size_t i) {
+                            math::polynomial_dfs<typename FieldType::value_type> sorted_shifted = math::polynomial_shift(
+                                sorted[i-1], this->preprocessed_data.common_data.usable_rows_amount, this->basic_domain->m);
+                            F_dfs_3_parts[i-1] = alpha_challenges[i-1] * this->preprocessed_data.common_data.lagrange_0 * 
+                                (sorted[i] - sorted_shifted);
+                        }, ThreadPool::PoolLevel::HIGH);
+
+                        F_dfs[3] = math::polynomial_sum<FieldType>(std::move(F_dfs_3_parts));
 
                         return {
                             std::move(F_dfs),
@@ -244,7 +209,7 @@ std::cout << "calculation of F_dfs[3] ----- " << std::endl;
                             const typename FieldType::value_type& beta,
                             const typename FieldType::value_type& gamma) {
 
-                        PROFILE_PLACEHOLDER_SCOPE("compute_g");
+                        PROFILE_PLACEHOLDER_SCOPE("Lookup argument compute poly g");
 
                         auto& lookup_value = *lookup_value_ptr;
                         auto& lookup_input = *lookup_input_ptr;
@@ -270,9 +235,7 @@ std::cout << "calculation of F_dfs[3] ----- " << std::endl;
                         // We don't use lookup_value after this line.
                         lookup_value_ptr.reset(nullptr);
 
-std::cout << "Computing poly power for g " << std::endl;
                         g *= math::polynomial_product<FieldType>(std::move(g_multipliers));
-std::cout << "Done computing poly power for g " << std::endl;
                         return g;
                     }
 
@@ -281,7 +244,7 @@ std::cout << "Done computing poly power for g " << std::endl;
                             const typename FieldType::value_type& beta,
                             const typename FieldType::value_type& gamma
                         ) {
-                        PROFILE_PLACEHOLDER_SCOPE("compute_h");
+                        PROFILE_PLACEHOLDER_SCOPE("Lookup argument compute poly h");
 
                         auto one = FieldType::value_type::one();
 
@@ -299,7 +262,7 @@ std::cout << "Done computing poly power for g " << std::endl;
                         const std::vector<math::polynomial_dfs<typename FieldType::value_type>>& reduced_value,
                         const typename FieldType::value_type& beta,
                         const typename FieldType::value_type& gamma) {
-                        PROFILE_PLACEHOLDER_SCOPE("compute_V_L");
+                        PROFILE_PLACEHOLDER_SCOPE("Lookup argument compute poly V_L");
 
                         math::polynomial_dfs<typename FieldType::value_type> V_L(
                             basic_domain->m-1,basic_domain->m, FieldType::value_type::zero());
@@ -332,7 +295,7 @@ std::cout << "Done computing poly power for g " << std::endl;
 
                     std::unique_ptr<std::vector<math::polynomial_dfs<typename FieldType::value_type>>> prepare_lookup_value(
                             const math::polynomial_dfs<typename FieldType::value_type>& mask_assignment) {
-                        PROFILE_PLACEHOLDER_SCOPE("Lookup argument preparing lookup value.");
+                        PROFILE_PLACEHOLDER_SCOPE("Lookup argument preparing lookup value");
 
                         // Prepare lookup value
                         auto lookup_value_ptr = std::make_unique<std::vector<math::polynomial_dfs<typename FieldType::value_type>>>();
@@ -360,7 +323,7 @@ std::cout << "Done computing poly power for g " << std::endl;
                     }
 
                     std::unique_ptr<std::vector<math::polynomial_dfs<typename FieldType::value_type>>> prepare_lookup_input() {
-                        PROFILE_PLACEHOLDER_SCOPE("Lookup argument preparing lookup input.");
+                        PROFILE_PLACEHOLDER_SCOPE("Lookup argument preparing lookup input");
 
                         // Copied from gate argument.
                         // TODO: remove code duplication.
@@ -432,7 +395,6 @@ std::cout << "Done computing poly power for g " << std::endl;
                         const math::polynomial_dfs<typename FieldType::value_type> &polynomial,
                         const std::size_t &new_domain_size
                     ) {
-                        nil::crypto3::zk::snark::detail::placeholder_scoped_aggregate_profiler profiler("reduce_dfs_polynomial_domain");
                         math::polynomial_dfs<typename FieldType::value_type> reduced(
                             new_domain_size - 1, new_domain_size, FieldType::value_type::zero());
 
@@ -457,7 +419,6 @@ std::cout << "Done computing poly power for g " << std::endl;
                         std::size_t constraint_id,
                         std::size_t table_id
                     ){
-                        nil::crypto3::zk::snark::detail::placeholder_scoped_aggregate_profiler profiler("get_constraint_tag_from_gate_tag_column");
                         math::polynomial_dfs<typename FieldType::value_type> result = tag_column;
                         for (std::size_t i = 1; i <= constraints_num; i++) {
                             if (i != constraint_id) {
@@ -477,7 +438,6 @@ std::cout << "Done computing poly power for g " << std::endl;
                         std::size_t constraint_id,
                         std::size_t table_id
                     ) {
-                        nil::crypto3::zk::snark::detail::placeholder_scoped_aggregate_profiler profiler("get_constraint_tag_value_from_gate_tag_value");
                         typename FieldType::value_type result = tag_value;
                         for (std::size_t i = 1; i <= constraints_num; i++) {
                             if (i != constraint_id) {
@@ -504,7 +464,7 @@ std::cout << "Done computing poly power for g " << std::endl;
                         std::size_t domain_size,
                         std::size_t usable_rows_amount
                     ) {
-                        PROFILE_PLACEHOLDER_SCOPE("sort_polynomials");
+                        PROFILE_PLACEHOLDER_SCOPE("Sort Polynomials");
 
                         //  Build sorting map
                         std::unordered_map<typename FieldType::value_type, std::size_t> sorting_map;

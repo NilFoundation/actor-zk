@@ -82,7 +82,7 @@ namespace nil {
                         typename ParamsType::commitment_scheme_type& commitment_scheme,
                         transcript_type& transcript) {
 
-                        PROFILE_PLACEHOLDER_SCOPE("permutation_argument_prove_eval_time");
+                        PROFILE_PLACEHOLDER_SCOPE("Permutation argument prove_eval time");
 
                         const std::vector<math::polynomial_dfs<typename FieldType::value_type>> &S_sigma =
                             preprocessed_data.permutation_polynomials;
@@ -101,8 +101,6 @@ namespace nil {
 
                         std::vector<math::polynomial_dfs<typename FieldType::value_type>> g_v = S_id;
                         std::vector<math::polynomial_dfs<typename FieldType::value_type>> h_v = S_sigma;
-    {
-    PROFILE_PLACEHOLDER_SCOPE("permutation_argument 1");
                         parallel_for(0, S_id.size(), [&g_v, &h_v, &beta, &gamma, &column_polynomials, &basic_domain](std::size_t i) {
                             BOOST_ASSERT(column_polynomials[i].size() == basic_domain->size());
                             BOOST_ASSERT(S_id[i].size() == basic_domain->size());
@@ -118,10 +116,8 @@ namespace nil {
                             h_v[i] += gamma;
                             h_v[i] += column_polynomials[i];
                         }, ThreadPool::PoolLevel::HIGH);
-    }
-    {
-    PROFILE_PLACEHOLDER_SCOPE("permutation_argument 2");
-                // TODO(martun): parallelize the loop below, it takes ~20 seconds on 256 leaves.
+
+                        // TODO(martun): parallelize the loop below, it takes ~20 seconds on 256 leaves.
                         V_P[0] = FieldType::value_type::one();
                         for (std::size_t j = 1; j < basic_domain->size(); j++) {
                             typename FieldType::value_type nom = FieldType::value_type::one();
@@ -133,7 +129,6 @@ namespace nil {
                             }
                             V_P[j] = V_P[j - 1] * nom / denom;
                         }
-     }
 
                         // 4. Compute and add commitment to $V_P$ to $\text{transcript}$.
                         // TODO: Better enumeration for polynomial batches
@@ -145,7 +140,6 @@ namespace nil {
                         math::polynomial_dfs<typename FieldType::value_type> h =
                             math::polynomial_product<FieldType>(std::move(h_v));
 
-    nil::crypto3::zk::snark::detail::placeholder_scoped_profiler prof2("permutation_argument the last part");
                         math::polynomial_dfs<typename FieldType::value_type> one_polynomial(
                             0, V_P.size(), FieldType::value_type::one());
                         std::array<math::polynomial_dfs<typename FieldType::value_type>, argument_size> F_dfs;

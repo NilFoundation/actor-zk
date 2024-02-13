@@ -39,7 +39,6 @@
 #include <nil/crypto3/zk/transcript/fiat_shamir.hpp>
 #include <nil/crypto3/zk/commitments/batched_commitment.hpp>
 #include <nil/crypto3/zk/commitments/detail/polynomial/basic_fri.hpp>
-#include <nil/crypto3/zk/snark/systems/plonk/placeholder/detail/placeholder_scoped_profiler.hpp>
 
 #include <nil/actor/core/thread_pool.hpp>
 #include <nil/actor/core/parallelization_utils.hpp>
@@ -121,10 +120,7 @@ namespace nil {
                             }
                         }
 
-        {
-        PROFILE_PLACEHOLDER_SCOPE("LPC eval polys");
                         this->eval_polys();
-        }
 
                         BOOST_ASSERT(this->_points.size() == this->_polys.size());
                         BOOST_ASSERT(this->_points.size() == this->_z.get_batches_num());
@@ -139,10 +135,6 @@ namespace nil {
 
                         auto points = this->get_unique_points();
                         math::polynomial<value_type> combined_Q_normal;
-
-        {
-        PROFILE_PLACEHOLDER_SCOPE("Computing combined_Q_normal");
-        std::cout << "Number of points is " << points.size() << std::endl;
 
                         std::vector<math::polynomial<value_type>> Q_normals(points.size());
 
@@ -193,7 +185,6 @@ namespace nil {
                         for (const auto& Q_normal: Q_normals) {
                             combined_Q_normal += Q_normal;
                         }
-        }
                         if constexpr (std::is_same<math::polynomial_dfs<value_type>, PolynomialType>::value ) {
                             combined_Q.from_coefficients(combined_Q_normal);
                         } else {
@@ -201,16 +192,12 @@ namespace nil {
                         }
 
                         precommitment_type combined_Q_precommitment;
-        {
-        PROFILE_PLACEHOLDER_SCOPE("Computing combined_Q_precommitment");
                         combined_Q_precommitment = nil::crypto3::zk::algorithms::precommit<fri_type>(
                             combined_Q,
                             _fri_params.D[0],
                             _fri_params.step_list.front()
                         );
-        }
 
-        PROFILE_PLACEHOLDER_SCOPE("Computing nil::crypto3::zk::algorithms::proof_eval for FRI.");
                         typename fri_type::proof_type fri_proof = nil::crypto3::zk::algorithms::proof_eval<
                             fri_type, poly_type
                         >(
