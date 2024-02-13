@@ -121,7 +121,10 @@ namespace nil {
                             }
                         }
 
+        {
+        PROFILE_PLACEHOLDER_SCOPE("LPC eval polys");
                         this->eval_polys();
+        }
 
                         BOOST_ASSERT(this->_points.size() == this->_polys.size());
                         BOOST_ASSERT(this->_points.size() == this->_z.get_batches_num());
@@ -194,7 +197,7 @@ namespace nil {
                         if constexpr (std::is_same<math::polynomial_dfs<value_type>, PolynomialType>::value ) {
                             combined_Q.from_coefficients(combined_Q_normal);
                         } else {
-                            combined_Q = combined_Q_normal;
+                            combined_Q = std::move(combined_Q_normal);
                         }
 
                         precommitment_type combined_Q_precommitment;

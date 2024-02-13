@@ -99,9 +99,10 @@ namespace nil {
                         math::polynomial_dfs<typename FieldType::value_type> V_P(basic_domain->size() - 1,
                                                                                  basic_domain->size());
 
-std::cout << "Permutation arg 1" << std::endl;
                         std::vector<math::polynomial_dfs<typename FieldType::value_type>> g_v = S_id;
                         std::vector<math::polynomial_dfs<typename FieldType::value_type>> h_v = S_sigma;
+    {
+    PROFILE_PLACEHOLDER_SCOPE("permutation_argument 1");
                         parallel_for(0, S_id.size(), [&g_v, &h_v, &beta, &gamma, &column_polynomials, &basic_domain](std::size_t i) {
                             BOOST_ASSERT(column_polynomials[i].size() == basic_domain->size());
                             BOOST_ASSERT(S_id[i].size() == basic_domain->size());
@@ -117,10 +118,9 @@ std::cout << "Permutation arg 1" << std::endl;
                             h_v[i] += gamma;
                             h_v[i] += column_polynomials[i];
                         }, ThreadPool::PoolLevel::HIGH);
-
-std::cout << "Permutation arg 2" << std::endl;
-                {
-                PROFILE_PLACEHOLDER_SCOPE("permutation_argument_prove_eval_time");
+    }
+    {
+    PROFILE_PLACEHOLDER_SCOPE("permutation_argument 2");
                 // TODO(martun): parallelize the loop below, it takes ~20 seconds on 256 leaves.
                         V_P[0] = FieldType::value_type::one();
                         for (std::size_t j = 1; j < basic_domain->size(); j++) {
@@ -133,24 +133,19 @@ std::cout << "Permutation arg 2" << std::endl;
                             }
                             V_P[j] = V_P[j - 1] * nom / denom;
                         }
-                }
-
-std::cout << "Permutation arg 3" << std::endl;
+     }
 
                         // 4. Compute and add commitment to $V_P$ to $\text{transcript}$.
                         // TODO: Better enumeration for polynomial batches
                         commitment_scheme.append_to_batch(PERMUTATION_BATCH, V_P);
 
-std::cout << "Permutation arg 4" << std::endl;
                         // 5. Calculate g_perm, h_perm
                         math::polynomial_dfs<typename FieldType::value_type> g =
                             math::polynomial_product<FieldType>(std::move(g_v));
-std::cout << "Permutation arg 5" << std::endl;
                         math::polynomial_dfs<typename FieldType::value_type> h =
                             math::polynomial_product<FieldType>(std::move(h_v));
 
-std::cout << "Permutation arg 6" << std::endl;
-
+    nil::crypto3::zk::snark::detail::placeholder_scoped_profiler prof2("permutation_argument the last part");
                         math::polynomial_dfs<typename FieldType::value_type> one_polynomial(
                             0, V_P.size(), FieldType::value_type::one());
                         std::array<math::polynomial_dfs<typename FieldType::value_type>, argument_size> F_dfs;

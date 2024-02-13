@@ -129,6 +129,8 @@ namespace nil {
                             , _is_lookup_enabled(constraint_system.lookup_gates().size() > 0)
                             , _commitment_scheme(commitment_scheme)
                     {
+                        std::cout << "Table has " << table_description.rows_amount << " rows." << std::endl;
+
                         // Initialize transcript.
                         transcript(preprocessed_public_data.common_data.vk.constraint_system_with_params_hash);
                         transcript(preprocessed_public_data.common_data.vk.fixed_values_commitment);
@@ -253,8 +255,7 @@ namespace nil {
                         //      F[7] (from gates argument)
                         // If some columns used in permutation or lookup argument are zero, real quotient polynomial degree
                         //      may be less than split_polynomial_size.
-                        std::vector<polynomial_dfs_type> T_splitted_dfs(split_polynomial_size,
-                            polynomial_dfs_type(0, _F_dfs[0].size(), FieldType::value_type::zero()));
+                        std::vector<polynomial_dfs_type> T_splitted_dfs(split_polynomial_size);
 
                         parallel_for(0, T_splitted.size(), [&T_splitted, &T_splitted_dfs](std::size_t k) {
                             T_splitted_dfs[k].from_coefficients(T_splitted[k]);
@@ -280,7 +281,8 @@ namespace nil {
 
                         parallel_for(0, f_parts, 
                             [this, &F_consolidated_dfs_parts, &alphas](std::size_t i) {
-                                F_consolidated_dfs_parts[i] = alphas[i] * this->_F_dfs[i];
+                                F_consolidated_dfs_parts[i] = this->_F_dfs[i];
+                                F_consolidated_dfs_parts[i] *= alphas[i];
                         }, ThreadPool::PoolLevel::HIGH);
 
                         F_consolidated_dfs = math::polynomial_sum<FieldType>(std::move(F_consolidated_dfs_parts));
@@ -295,8 +297,8 @@ namespace nil {
                     polynomial_type T_consolidated;
                     {
                     PROFILE_PLACEHOLDER_SCOPE("quotient_polynomial_time division");
-                        T_consolidated =
-                            F_consolidated_normal / preprocessed_public_data.common_data.Z;
+                        T_consolidated = std::move(F_consolidated_normal);
+                        T_consolidated /= preprocessed_public_data.common_data.Z;
                     }
                         return T_consolidated;
                     }
