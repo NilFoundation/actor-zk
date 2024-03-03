@@ -662,7 +662,7 @@ namespace nil {
                         if (i != fri_params.step_list.size() - 1)
                             precommitment = precommit<FRI>(f, fri_params.D[t], fri_params.step_list[i + 1]);
                     }
-        
+
                     fs.push_back(f);
                     math::polynomial<typename FRI::field_type::value_type> final_polynomial;
                     if constexpr (std::is_same<math::polynomial_dfs<typename FRI::field_type::value_type>, PolynomialType>::value) {
@@ -707,8 +707,16 @@ namespace nil {
                     }
 
                     std::array<int, FRI::lambda> challenges;
-                    for (std::size_t query_id = 0; query_id < FRI::lambda; ++query_id)
-                        challenges[query_id] = transcript.template int_challenge<std::uint64_t>();
+                    for (std::size_t query_id = 0; query_id < FRI::lambda; ++query_id){
+                        typename FRI::field_type::value_type x = transcript.template challenge<typename FRI::field_type>();
+                        x = x.pow((FRI::field_type::modulus - 1)/fri_params.D[0]->size());
+                        challenges[query_id] = 0;
+                        for( challenges[query_id] = 0; challenges[query_id] < fri_params.D[0]->size(); challenges[query_id]++ ){
+                            if( fri_params.D[0]->get_domain_element(challenges[query_id]) == x ){
+                                break;
+                            }
+                        }
+                    }
 
                     // TODO: Refactor this part a bit, maybe we can move some values? Maybe divide into a few functions?
                     parallel_for(0, FRI::lambda,
@@ -865,9 +873,14 @@ namespace nil {
 
                         std::size_t domain_size = fri_params.D[0]->size();
                         std::size_t coset_size = 1 << fri_params.step_list[0];
-                        std::uint64_t x_index = (transcript.template int_challenge<std::uint64_t>()) % domain_size;
-                        typename FRI::field_type::value_type x = fri_params.D[0]->get_domain_element(x_index);
-
+                        typename FRI::field_type::value_type x_challenge = transcript.template challenge<typename FRI::field_type>();
+                        typename FRI::field_type::value_type x = x_challenge.pow((FRI::field_type::modulus - 1)/domain_size);
+                        std::uint64_t x_index = 0;
+                        for( x_index = 0; x_index < domain_size; x_index++ ){
+                            if( fri_params.D[0]->get_domain_element(x_index) == x ){
+                                break;
+                            }
+                        }
                         std::vector<std::array<typename FRI::field_type::value_type, FRI::m>> s;
                         std::vector<std::array<std::size_t, FRI::m>> s_indices;
                         std::tie(s, s_indices) = calculate_s<FRI>(x, x_index, fri_params.step_list[0], fri_params.D[0]);
