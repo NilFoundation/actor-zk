@@ -50,60 +50,40 @@ namespace nil {
                     }
                     plonk_variable<typename FieldType::value_type> first;
                     plonk_variable<typename FieldType::value_type> second;
-                    bool operator==(const plonk_copy_constraint<FieldType> &other){
-                        return ((first == other.first ) && (second == other.second));
-                    }
                 protected:
                     void initialize(
                         const plonk_variable<typename FieldType::value_type> &_first,
                         const plonk_variable<typename FieldType::value_type> &_second
                     ){
-                        BOOST_ASSERT(_first.relative == false);
-                        BOOST_ASSERT(_second.relative == false);
-                        if(_first.type == _second.type){
-                            if(_first.index < _second.index){
-                                first = plonk_variable<typename FieldType::value_type>(_first);
-                                second = plonk_variable<typename FieldType::value_type>(_second);
-                            } else if (_first.index > _second.index){
-                                first = plonk_variable<typename FieldType::value_type>(_second);
-                                second = plonk_variable<typename FieldType::value_type>(_first);
-                            } else if (_first.rotation < _second.rotation){
-                                first = plonk_variable<typename FieldType::value_type>(_first);
-                                second = plonk_variable<typename FieldType::value_type>(_second);
-                            } else if (_first.rotation > _second.rotation){
-                                first = plonk_variable<typename FieldType::value_type>(_second);
-                                second = plonk_variable<typename FieldType::value_type>(_first);
-                            } else {
-                                BOOST_ASSERT_MSG(false, "Copy constraint with equal variables");
-                            }
-                            return;
-                        }
-                        if( _first.type == plonk_variable<typename FieldType::value_type>::column_type::witness){
-                            first = plonk_variable<typename FieldType::value_type>(_first);
-                            second = plonk_variable<typename FieldType::value_type>(_second);
-                        } else if (
-                            _first.type == plonk_variable<typename FieldType::value_type>::column_type::public_input &&
-                            _second.type != plonk_variable<typename FieldType::value_type>::column_type::witness
-                        ){
-                            first = plonk_variable<typename FieldType::value_type>(_first);
-                            second = plonk_variable<typename FieldType::value_type>(_second);
-                        } else if(
-                            _first.type == plonk_variable<typename FieldType::value_type>::column_type::constant &&
-                            _second.type == plonk_variable<typename FieldType::value_type>::column_type::selector
-                        ){
-                            first = plonk_variable<typename FieldType::value_type>(_first);
-                            second = plonk_variable<typename FieldType::value_type>(_second);
+                        if( _first.relative || _second.relative ) std::cout << "Relative variable " << _first << " " << _second << std::endl;
+                        if( _first == _second ) std::cout << "First == second "  << _first << " " << _second << std::endl;
+                        BOOST_ASSERT_MSG( _first != _second, "First and second variables are equal" );
+                        BOOST_ASSERT_MSG( _first.relative == false, "First variable in copy constraint is relative" );
+                        BOOST_ASSERT_MSG( _second.relative == false, "Second variable in copy constraint is relative" );
+
+                        if(_first < _second ){
+                            first = _first;
+                            second = _second;
                         } else {
                             first = plonk_variable<typename FieldType::value_type>(_second);
                             second = plonk_variable<typename FieldType::value_type>(_first);
                         }
-                        return;
                    }
                 };
 
                 template <typename FieldType>
                 bool operator==(const plonk_copy_constraint<FieldType> &a, const plonk_copy_constraint<FieldType> &b) {
                     return a.first == b.first && a.second == b.second;
+                }
+
+                template <typename FieldType>
+                bool operator!=(const plonk_copy_constraint<FieldType> &a, const plonk_copy_constraint<FieldType> &b) {
+                    return !(a == b);
+                }
+
+                template <typename FieldType>
+                bool operator<(const plonk_copy_constraint<FieldType> &a, const plonk_copy_constraint<FieldType> &b) {
+                    return a.first < b.first || (a.first == b.first && a.second < b.second);
                 }
             }    // namespace snark
         }        // namespace zk
