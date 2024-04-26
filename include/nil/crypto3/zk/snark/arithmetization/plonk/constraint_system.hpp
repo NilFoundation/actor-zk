@@ -37,6 +37,7 @@
 
 #include <cstdlib>
 #include <vector>
+#include <unordered_set>
 
 #include <nil/crypto3/zk/snark/arithmetization/plonk/gate.hpp>
 #include <nil/crypto3/zk/snark/arithmetization/plonk/constraint.hpp>
@@ -67,6 +68,8 @@ namespace nil {
                     typedef math::binary_arithmetic_operation<variable_type> binary_operation_type;
                     typedef math::pow_operation<variable_type> pow_operation_type;
                     typedef std::vector<std::size_t> public_input_sizes_type;
+                    typedef FieldType field_type;
+
                 protected:
                     gates_container_type _gates;
                     copy_constraints_container_type _copy_constraints;
@@ -75,7 +78,6 @@ namespace nil {
                     // If empty, then check full column
                     public_input_sizes_type _public_input_sizes;
                 public:
-                    typedef FieldType field_type;
 
                     plonk_constraint_system() {
                     }
@@ -86,7 +88,7 @@ namespace nil {
                                             const copy_constraints_container_type &copy_constraints,
                                             const lookup_gates_container_type &lookup_gates = {},
                                             const lookup_tables_type &lookup_tables = {},
-                                            const public_input_sizes_type public_input_sizes = {}
+                                            const public_input_sizes_type &public_input_sizes = {}
                     ) :
                         _gates(gates),
                         _copy_constraints(copy_constraints),
@@ -96,18 +98,23 @@ namespace nil {
                     {
                     }
 
-                    std::size_t full_public_input_size() const {
-                        std::size_t sum = 0;
-                        for(std::size_t i = 0; i < _public_input_sizes.size(); ++i) {
-                            sum += _public_input_sizes[i];
+                    std::unordered_set<variable_type> permuted_columns() const{
+                        std::unordered_set<variable_type> result;
+                        for( std::size_t i = 0; i < _copy_constraints.size(); i++){
+                            auto var0 = _copy_constraints[i].first;
+                            auto var1 = _copy_constraints[i].second;
+                            result.insert(variable_type(var0.index, 0, true, var0.type));
+                            result.insert(variable_type(var1.index, 0, true, var1.type));
                         }
-                        return sum;
+                        return std::move(result);
+                    }
+
+                    std::size_t public_input_total_size() const {
+                        return std::accumulate(_public_input_sizes.begin(), _public_input_sizes.end(), 0);
                     }
 
                     std::size_t public_input_size(std::size_t i) const {
-                        if(i >= _public_input_sizes.size()){
-                            return 0;
-                        }
+                        assert(i < _public_input_sizes.size());
                         return _public_input_sizes[i];
                     }
 
@@ -132,6 +139,10 @@ namespace nil {
                     }
 
                     const copy_constraints_container_type &copy_constraints() const {
+                        return _copy_constraints;
+                    }
+
+                    copy_constraints_container_type &mutable_copy_constraints() {
                         return _copy_constraints;
                     }
 
@@ -241,6 +252,57 @@ namespace nil {
                         return lookup_degree;
                     }
 
+                    std::vector<std::size_t> lookup_parts(
+                        std::size_t max_quotient_chunks
+                    ) const {
+                        if( max_quotient_chunks == 0 ){
+                            return {this->sorted_lookup_columns_number()};
+                        }
+
+                        using VariableType = plonk_variable<typename FieldType::value_type>;
+                        typedef math::expression_max_degree_visitor<VariableType> degree_visitor_type;
+                        std::vector<std::size_t> lookup_parts;
+                        degree_visitor_type lookup_visitor;
+
+                        std::size_t lookup_chunk = 0;
+                        std::size_t lookup_part = 0;
+                        std::size_t max_constraint_degree;
+                        for (const auto& gate :_lookup_gates) {
+                            for (const auto& constr : gate.constraints) {
+                                max_constraint_degree = 0;
+                                for (const auto& li : constr.lookup_input) {
+                                    std::size_t deg = lookup_visitor.compute_max_degree(li);
+                                    max_constraint_degree = std::max(
+                                        max_constraint_degree,
+                                        deg
+                                    );
+                                }
+                                if( lookup_chunk + max_constraint_degree + 1>= max_quotient_chunks ){
+                                    lookup_parts.push_back(lookup_part);
+                                    lookup_chunk = 0;
+                                    lookup_part = 0;
+                                }
+                                // +1 because lookup input is multiplied by selector
+                                lookup_chunk += max_constraint_degree + 1;
+                                lookup_part++;
+                            }
+                        }
+                        for (const auto& table : _lookup_tables) {
+                            for( const auto &lookup_options: table.lookup_options ){
+                                // +3 because now any lookup option is lookup_column * lookup_selector * (1-q_last-q_blind) -- three polynomials degree rows_amount-1
+                                if( lookup_chunk + 3 >= max_quotient_chunks ){
+                                    lookup_parts.push_back(lookup_part);
+                                    lookup_chunk = 0;
+                                    lookup_part = 0;
+                                }
+                                lookup_chunk += 3;
+                                lookup_part++;
+                            }
+                        }
+
+                        lookup_parts.push_back(lookup_part);
+                        return lookup_parts;
+                    }
 
                     bool operator==(const plonk_constraint_system<FieldType> &other) const {
                         return (this->_gates == other._gates) && (this->_copy_constraints == other._copy_constraints) &&

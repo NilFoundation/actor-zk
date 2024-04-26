@@ -3,6 +3,7 @@
 // Copyright (c) 2020-2021 Nikita Kaskov <nbering@nil.foundation>
 // Copyright (c) 2020-2021 Ilias Khairullin <ilias@nil.foundation>
 // Copyright (c) 2022 Ekaterina Chukavina <kate@nil.foundation>
+// Copyright (c) 2024 Vasiliy Olekhov <vasiliy.olekhov@nil.foundation>
 //
 // MIT License
 //
@@ -46,6 +47,8 @@
 #include <nil/crypto3/algebra/curves/detail/marshalling.hpp>
 #include <nil/crypto3/algebra/marshalling.hpp>
 #include <nil/crypto3/algebra/random_element.hpp>
+
+#include <nil/crypto3/marshalling/algebra/types/curve_element.hpp>
 
 #include <nil/crypto3/zk/transcript/fiat_shamir.hpp>
 #include <nil/crypto3/math/polynomial/polynomial.hpp>
@@ -215,6 +218,9 @@ namespace nil {
                     typename PolynomialType = math::polynomial_dfs<typename CurveType::scalar_field_type::value_type>
                 >
                 struct batched_kzg {
+
+                    constexpr static bool is_kzg = true;
+
                     typedef CurveType curve_type;
                     typedef TranscriptHashType transcript_hash_type;
                     typedef typename curve_type::gt_type::value_type gt_value_type;
@@ -233,16 +239,12 @@ namespace nil {
 
                     using commitment_type = std::vector<std::uint8_t>; // Used in placeholder because it's easy to push it into transcript
 
+                    using eval_storage_type = eval_storage<field_type>;
+
                     struct proof_type {
-                        eval_storage<field_type> z;
+                        eval_storage_type z;
                         single_commitment_type   kzg_proof;
                     };
-
-
-                    const static std::size_t scalar_blob_size = field_type::arity * (field_type::modulus_bits / 8 + (field_type::modulus_bits % 8 ? 1 : 0));
-                    const static std::size_t g1_blob_size = 96;
-                    const static std::size_t g2_blob_size = 192;
-                    using bincode = typename nil::marshalling::bincode::field<field_type>;
 
                     struct params_type {
                         using commitment_type = std::vector<std::uint8_t>;
@@ -250,6 +252,7 @@ namespace nil {
 
                         std::vector<single_commitment_type> commitment_key;
                         std::vector<verification_key_type> verification_key;
+                        using params_single_commitment_type = commitment_type;
 
                         params_type() {};
 
@@ -295,12 +298,12 @@ namespace nil {
                         std::vector<single_commitment_type> commits;
                         std::vector<scalar_value_type> T;  // merged eval points
                         std::vector<std::vector<scalar_value_type>> S; // eval points
-                        std::vector<math::polynomial<scalar_value_type>> r; // U polynomials
+                        std::vector<poly_type> r; // U polynomials
                         public_key_type() {};
                         public_key_type(std::vector<single_commitment_type> commits,
                                                 std::vector<scalar_value_type> T,
                                                 std::vector<std::vector<scalar_value_type>> S,
-                                                std::vector<math::polynomial<scalar_value_type>> r) :
+                                                std::vector<poly_type> r) :
                                                 commits(commits), T(T), S(S), r(r) {};
                         public_key_type operator=(const public_key_type &other) {
                             commits = other.commits;
@@ -322,20 +325,31 @@ namespace nil {
                         bool>::type = true>
                 static void update_transcript(const typename KZG::public_key_type &public_key,
                                             typename KZG::transcript_type &transcript) {
-                    std::vector<std::uint8_t> byteblob(KZG::scalar_blob_size);
+
+                    /* The procedure of updating the transcript is subject to review and change
+                     * #295 */
+
+                    nil::marshalling::status_type status;
 
                     for (const auto &commit : public_key.commits) {
-                        transcript(KZG::serializer::point_to_octets(commit));
+                        std::vector<uint8_t> byteblob =
+                            nil::marshalling::pack<nil::marshalling::option::big_endian>(commit, status);
+                        BOOST_ASSERT(status == nil::marshalling::status_type::success);
+                        transcript(byteblob);
                     }
                     for (const auto &S : public_key.S) {
                         for (const auto &s : S) {
-                            KZG::bincode::template field_element_to_bytes<std::vector<std::uint8_t>::iterator>(s, byteblob.begin(), byteblob.end());
+                            std::vector<uint8_t> byteblob =
+                                nil::marshalling::pack<nil::marshalling::option::big_endian>(s, status);
+                            BOOST_ASSERT(status == nil::marshalling::status_type::success);
                             transcript(byteblob);
                         }
                     }
                     for (const auto &r : public_key.r) {
                         for (std::size_t i = 0; i < r.size(); ++i) {
-                            KZG::bincode::template field_element_to_bytes<std::vector<std::uint8_t>::iterator>(r[i], byteblob.begin(), byteblob.end());
+                            std::vector<uint8_t> byteblob =
+                                nil::marshalling::pack<nil::marshalling::option::big_endian>(r[i], status);
+                            BOOST_ASSERT(status == nil::marshalling::status_type::success);
                             transcript(byteblob);
                         }
                     }
@@ -348,12 +362,12 @@ namespace nil {
                         bool
                     >::type = true
                 >
-                static std::vector<math::polynomial<typename KZG::scalar_value_type>> create_evals_polys(
+                static std::vector<typename KZG::poly_type> create_evals_polys(
                     const typename KZG::batch_of_polynomials_type &polys,
                     const std::vector<std::vector<typename KZG::scalar_value_type>> S
                 ) {
                     BOOST_ASSERT(polys.size() == S.size());
-                    std::vector<math::polynomial<typename KZG::scalar_value_type>> rs(polys.size());
+                    std::vector<typename KZG::poly_type> rs(polys.size());
                     for (std::size_t i = 0; i < polys.size(); ++i) {
                         typename std::vector<std::pair<typename KZG::scalar_value_type, typename KZG::scalar_value_type>> evals;
                         for (auto s : S[i]) {
@@ -530,7 +544,7 @@ namespace nil {
 
                     auto gamma = transcript.template challenge<typename KZG::curve_type::scalar_field_type>();
                     auto factor = KZG::scalar_value_type::one();
-                    typename math::polynomial<typename KZG::scalar_value_type> accum;
+                    typename KZG::poly_type accum;
 
                     for (std::size_t i = 0; i < polys.size(); ++i) {
                         auto spare_poly = polys[i] - public_key.r[i];
@@ -546,6 +560,7 @@ namespace nil {
                     }
 
                     //verify without pairing
+                    /*
                     {
                         typename math::polynomial<typename KZG::scalar_value_type> right_side({{0}});
                         factor = KZG::scalar_value_type::one();
@@ -554,7 +569,7 @@ namespace nil {
                             factor = factor * gamma;
                         }
                         assert(accum * create_polynom_by_zeros<KZG>(public_key.T) == right_side);
-                    }
+                    }*/
 
                     return commit_one<KZG>(params, accum);
                 }
@@ -596,9 +611,13 @@ namespace nil {
 
 
             namespace commitments{
-                                // Placeholder-friendly class
-                template<typename KZGScheme, typename PolynomialType = typename math::polynomial_dfs<typename KZGScheme::field_type::value_type>>
-                class kzg_commitment_scheme : public polys_evaluator<typename KZGScheme::params_type, typename KZGScheme::commitment_type, PolynomialType>{
+                // Placeholder-friendly class
+                template<typename KZGScheme>
+                class kzg_commitment_scheme :
+                    public polys_evaluator<
+                        typename KZGScheme::params_type,
+                        typename KZGScheme::commitment_type,
+                        typename KZGScheme::poly_type> {
                 public:
                     using curve_type = typename KZGScheme::curve_type;
                     using field_type = typename KZGScheme::field_type;
@@ -608,8 +627,9 @@ namespace nil {
                     using commitment_type = typename KZGScheme::commitment_type;
                     using transcript_type = typename KZGScheme::transcript_type;
                     using transcript_hash_type = typename KZGScheme::transcript_hash_type;
-                    using poly_type = PolynomialType;
+                    using poly_type = typename KZGScheme::poly_type;
                     using proof_type = typename KZGScheme::proof_type;
+                    using endianness = nil::marshalling::option::big_endian;
                 private:
                     params_type _params;
                     std::map<std::size_t, commitment_type> _commitments;
@@ -652,14 +672,19 @@ namespace nil {
                     }
 
                     void update_transcript(std::size_t batch_ind, typename KZGScheme::transcript_type &transcript) {
-                        std::vector<std::uint8_t> byteblob(KZGScheme::scalar_blob_size);
+                        /* The procedure of updating the transcript is subject to review and change
+                         * #295 */
+
                         // Push commitments to transcript
                         transcript(_commitments[batch_ind]);
 
-                        //Push evaluation points to transcript
+                        // Push evaluation points to transcript
                         for( std::size_t i = 0; i < this->_z.get_batch_size(batch_ind); i++){
-                            for( std::size_t j = 0; j < this->_z.get_poly_points_number(batch_ind, i); j++){
-                                KZGScheme::bincode::template field_element_to_bytes<std::vector<std::uint8_t>::iterator>(this->_z.get(batch_ind, i, j), byteblob.begin(), byteblob.end());
+                            for( std::size_t j = 0; j < this->_z.get_poly_points_number(batch_ind, i); j++  ) {
+                                nil::marshalling::status_type status;
+                                std::vector<uint8_t> byteblob =
+                                    nil::marshalling::pack<endianness>(this->_z.get(batch_ind, i, j), status);
+                                BOOST_ASSERT(status == nil::marshalling::status_type::success);
                                 transcript(byteblob);
                             }
                         }
@@ -668,9 +693,10 @@ namespace nil {
                         for (std::size_t i = 0; i < this->_points[batch_ind].size(); i++) {
                             auto poly = this->get_U(batch_ind, i);
                             for (std::size_t j = 0; j < poly.size(); ++j) {
-                                KZGScheme::bincode::template field_element_to_bytes<std::vector<std::uint8_t>::iterator>(
-                                    poly[j], byteblob.begin(), byteblob.end()
-                                );
+                                nil::marshalling::status_type status;
+                                std::vector<uint8_t> byteblob =
+                                    nil::marshalling::pack<endianness>(poly[j], status);
+                                BOOST_ASSERT(status == nil::marshalling::status_type::success);
                                 transcript(byteblob);
                             }
                         }
@@ -692,13 +718,13 @@ namespace nil {
                             BOOST_ASSERT(this->_polys[index][i].degree() <= _params.commitment_key.size());
                             auto single_commitment = nil::crypto3::zk::algorithms::commit_one<KZGScheme>(_params, this->_polys[index][i]);
                             this->_ind_commitments[index].push_back(single_commitment);
-                            auto single_commitment_bytes = KZGScheme::serializer::point_to_octets(single_commitment);
-
+                            nil::marshalling::status_type status;
+                            std::vector<uint8_t> single_commitment_bytes =
+                                nil::marshalling::pack<endianness>(single_commitment, status);
+                            BOOST_ASSERT(status == nil::marshalling::status_type::success);
                             result.insert(result.end(), single_commitment_bytes.begin(), single_commitment_bytes.end());
                         }
                         _commitments[index] = result;
-
-
                         return result;
                     }
 
@@ -712,7 +738,6 @@ namespace nil {
                     }
 
                     proof_type proof_eval(transcript_type &transcript){
-
                         this->eval_polys();
                         this->merge_eval_points();
 
@@ -728,14 +753,15 @@ namespace nil {
                         for( auto const &it: this->_polys ){
                             auto k = it.first;
                             for (std::size_t i = 0; i < this->_z.get_batch_size(k); ++i) {
-                                accum += factor * (math::polynomial<typename KZGScheme::scalar_value_type>(this->_polys[k][i].coefficients()) - this->get_U(k, i))/this->get_V(this->_points[k][i]);
+                                accum += factor * ( math::polynomial<typename KZGScheme::scalar_value_type>( this->_polys[k][i].coefficients()) - this->get_U(k, i)) / this->get_V(this->_points[k][i]);
                                 factor *= gamma;
                             }
                         }
 
                         //verify without pairing. It's only for debug
                         //if something goes wrong, it may be useful to place here verification with pairings
-                        /*{
+                        /*
+                        {
                             typename math::polynomial<typename KZGScheme::scalar_value_type> right_side({{0}});
                             factor = KZGScheme::scalar_value_type::one();
                             for( auto const &it: this->_polys ){
@@ -772,20 +798,25 @@ namespace nil {
                         for (const auto &it: this->_commitments) {
                             auto k = it.first;
                             for (std::size_t i = 0; i < this->_points.at(k).size(); ++i) {
-                                std::vector<std::uint8_t> byteblob(KZGScheme::g1_blob_size);
+                                std::size_t blob_size = this->_commitments.at(k).size() / this->_points.at(k).size();
+                                std::vector<std::uint8_t> byteblob(blob_size);
 
-                                for (std::size_t j = 0; j < KZGScheme::g1_blob_size; j++) {
-                                    byteblob[j] = this->_commitments.at(k)[i * KZGScheme::g1_blob_size + j];
+                                for (std::size_t j = 0; j < blob_size; j++) {
+                                    byteblob[j] = this->_commitments.at(k)[i * blob_size + j];
                                 }
-                                auto i_th_commitment = KZGScheme::serializer::octets_to_g1_point(byteblob);
+                                nil::marshalling::status_type status;
+                                typename curve_type::template g1_type<>::value_type
+                                    i_th_commitment = nil::marshalling::pack(byteblob, status);
+                                BOOST_ASSERT(status == nil::marshalling::status_type::success);
                                 auto U_commit = nil::crypto3::zk::algorithms::commit_one<KZGScheme>(_params, this->get_U(k,i));
 
-                                auto left_side_pairing = nil::crypto3::algebra::pair_reduced<curve_type>(
-                                    factor*(i_th_commitment - U_commit),
-                                    commit_g2(set_difference_polynom(_merged_points, this->_points.at(k)[i]))
-                                );
+                                auto diffpoly = set_difference_polynom(_merged_points, this->_points.at(k)[i]);
+                                auto diffpoly_commitment = commit_g2(diffpoly);
 
-                                left_side_accum *= left_side_pairing;
+                                auto left_side_pairing = nil::crypto3::algebra::pair_reduced<curve_type>(
+                                    factor*(i_th_commitment - U_commit), diffpoly_commitment);
+
+                                left_side_accum = left_side_accum * left_side_pairing;
                                 factor *= gamma;
                             }
                         }
@@ -803,7 +834,7 @@ namespace nil {
                     }
 
                 };
-            }
+            }     // namespace commitments
         }         // namespace zk
     }             // namespace crypto3
 }    // namespace nil

@@ -27,6 +27,8 @@
 #ifndef CRYPTO3_ZK_PLONK_COPY_CONSTRAINT_HPP
 #define CRYPTO3_ZK_PLONK_COPY_CONSTRAINT_HPP
 
+#include <utility>
+
 #include <nil/crypto3/zk/snark/arithmetization/plonk/variable.hpp>
 
 namespace nil {
@@ -35,8 +37,54 @@ namespace nil {
             namespace snark {
 
                 template<typename FieldType>
-                using plonk_copy_constraint = std::pair<plonk_variable<typename FieldType::value_type>, plonk_variable<typename FieldType::value_type>>;
+                struct plonk_copy_constraint {
+                    plonk_copy_constraint() = default;
+                    plonk_copy_constraint(const plonk_copy_constraint<FieldType> &other){
+                        initialize(other.first, other.second);
+                    }
+                    plonk_copy_constraint(
+                        const plonk_variable<typename FieldType::value_type> &_first,
+                        const plonk_variable<typename FieldType::value_type> &_second
+                    ){
+                        initialize(_first, _second);
+                    }
+                    plonk_variable<typename FieldType::value_type> first;
+                    plonk_variable<typename FieldType::value_type> second;
+                protected:
+                    void initialize(
+                        const plonk_variable<typename FieldType::value_type> &_first,
+                        const plonk_variable<typename FieldType::value_type> &_second
+                    ){
+                        if( _first.relative || _second.relative ) std::cout << "Relative variable " << _first << " " << _second << std::endl;
+                        if( _first == _second ) std::cout << "First == second "  << _first << " " << _second << std::endl;
+                        BOOST_ASSERT_MSG( _first != _second, "First and second variables are equal" );
+                        BOOST_ASSERT_MSG( _first.relative == false, "First variable in copy constraint is relative" );
+                        BOOST_ASSERT_MSG( _second.relative == false, "Second variable in copy constraint is relative" );
 
+                        if(_first < _second ){
+                            first = _first;
+                            second = _second;
+                        } else {
+                            first = plonk_variable<typename FieldType::value_type>(_second);
+                            second = plonk_variable<typename FieldType::value_type>(_first);
+                        }
+                   }
+                };
+
+                template <typename FieldType>
+                bool operator==(const plonk_copy_constraint<FieldType> &a, const plonk_copy_constraint<FieldType> &b) {
+                    return a.first == b.first && a.second == b.second;
+                }
+
+                template <typename FieldType>
+                bool operator!=(const plonk_copy_constraint<FieldType> &a, const plonk_copy_constraint<FieldType> &b) {
+                    return !(a == b);
+                }
+
+                template <typename FieldType>
+                bool operator<(const plonk_copy_constraint<FieldType> &a, const plonk_copy_constraint<FieldType> &b) {
+                    return a.first < b.first || (a.first == b.first && a.second < b.second);
+                }
             }    // namespace snark
         }        // namespace zk
     }            // namespace crypto3
