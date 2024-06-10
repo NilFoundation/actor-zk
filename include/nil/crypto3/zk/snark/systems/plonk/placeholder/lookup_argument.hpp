@@ -178,23 +178,31 @@ namespace nil {
                         auto reduced_value_ptr = std::make_unique<std::vector<math::polynomial_dfs<typename FieldType::value_type>>>();
                         auto& reduced_value = *reduced_value_ptr;
 
+{
+PROFILE_PLACEHOLDER_SCOPE("Lookup argument lookup value reduction time");
                         for( std::size_t i = 0; i < lookup_value.size(); i++ ){
                             reduced_value.push_back(reduce_dfs_polynomial_domain(lookup_value[i], basic_domain->m));
                         }
+}
                         auto reduced_input_ptr = std::make_unique<std::vector<math::polynomial_dfs<typename FieldType::value_type>>>();
                         auto& reduced_input = *reduced_input_ptr;
-
+{
+PROFILE_PLACEHOLDER_SCOPE("Lookup argument lookup input reduction time");
                         for( std::size_t i = 0; i < lookup_input.size(); i++ ){
                             reduced_input.push_back(reduce_dfs_polynomial_domain(lookup_input[i], basic_domain->m));
                         }
+}
                         //    Sort
                         auto sorted = sort_polynomials(reduced_input, reduced_value, basic_domain->m,
                             preprocessed_data.common_data.desc.usable_rows_amount);
 
                         // 4. Commit sorted polys
+{
+PROFILE_PLACEHOLDER_SCOPE("Lookup argument append to commit");
                         for( std::size_t i = 0; i < sorted.size(); i++){
                             commitment_scheme.append_to_batch(LOOKUP_BATCH, sorted[i]);
                         }
+}
                         typename commitment_scheme_type::commitment_type lookup_commitment = commitment_scheme.commit(LOOKUP_BATCH);
                         transcript(lookup_commitment);
 
@@ -250,6 +258,7 @@ namespace nil {
                             g *= (preprocessed_data.q_last + preprocessed_data.q_blind) - one_polynomial;
                             F_dfs[2] = std::move(g);
                         } else {
+PROFILE_PLACEHOLDER_SCOPE("Lookup argument final part for part_sizes.size() != 1");
                             math::polynomial_dfs<typename FieldType::value_type> current_poly = V_L;
                             math::polynomial_dfs<typename FieldType::value_type> previous_poly = V_L;
                             std::vector<math::polynomial_dfs<typename FieldType::value_type>> parts;
@@ -283,18 +292,23 @@ namespace nil {
                         F_dfs[3] = zero_polynomial;
 
                         std::vector<typename FieldType::value_type> alpha_challenges(sorted.size() - 1);
+{
+PROFILE_PLACEHOLDER_SCOPE("Lookup argument alpha_challenges");
                         for (std::size_t i = 0; i < sorted.size() - 1; ++i) {
                             alpha_challenges[i] = transcript.template challenge<FieldType>();
                         }
+}
 
                         std::vector<math::polynomial_dfs<typename FieldType::value_type>> F_dfs_3_parts(std::next(sorted.begin(), 1), sorted.end());
+{
+PROFILE_PLACEHOLDER_SCOPE("Lookup argument F_dfs[3]");
                         parallel_for(0, F_dfs_3_parts.size(), [this, &F_dfs_3_parts, &alpha_challenges, &sorted](std::size_t i) {
                             math::polynomial_dfs sorted_shifted = math::polynomial_shift(sorted[i], this->preprocessed_data.common_data.desc.usable_rows_amount, this->basic_domain->m);
                             F_dfs_3_parts[i] -= sorted_shifted;
                             F_dfs_3_parts[i] *= alpha_challenges[i] * preprocessed_data.common_data.lagrange_0;
                         }, ThreadPool::PoolLevel::HIGH);
                         F_dfs[3] = polynomial_sum<FieldType>(std::move(F_dfs_3_parts));
-
+}
                         return {
                             std::move(F_dfs),
                             std::move(lookup_commitment)
@@ -306,8 +320,10 @@ namespace nil {
                             std::unique_ptr<std::vector<math::polynomial_dfs<typename FieldType::value_type>>> lookup_value_ptr,
                             const typename FieldType::value_type& beta,
                             const typename FieldType::value_type& gamma,
-                            std::vector<std::size_t> lookup_part_sizes
+                            const std::vector<std::size_t>& lookup_part_sizes
                     ) {
+PROFILE_PLACEHOLDER_SCOPE("Lookup argument compute_gs");
+std::cout << "Starting compute_gs" << std::endl;
                         std::vector<math::polynomial_dfs<typename FieldType::value_type>> result;
                         auto& lookup_value = *lookup_value_ptr;
                         auto& lookup_input = *lookup_input_ptr;
@@ -315,39 +331,38 @@ namespace nil {
                         auto g = math::polynomial_dfs<typename FieldType::value_type>::one();
                         auto one = FieldType::value_type::one();
 
-                        std::size_t current_part = 0;
-                        std::vector<math::polynomial_dfs<typename FieldType::value_type>> g_multipliers;
-                        for (std::size_t i = 0; i < lookup_input.size(); i++) {
-                            g_multipliers.push_back((one + beta) * (gamma + lookup_input[i]));
-                            if( g_multipliers.size() == lookup_part_sizes[current_part] ){
-                                g *= math::polynomial_product<FieldType>(std::move(g_multipliers));
-                                result.push_back(g);
-                                g_multipliers.clear();
-                                g = math::polynomial_dfs<typename FieldType::value_type>::one();
-                                current_part++;
-                            }
+                        // Precompute the indices of start and end locations for each chunk.
+                        std::vector<std::size_t> lookup_part_start_indices;
+                        lookup_part_start_indices.push_back(0);
+                        for (std::size_t current_part = 0; current_part < lookup_part_sizes.size(); ++current_part) {
+                            lookup_part_start_indices.push_back(lookup_part_start_indices[current_part] + lookup_part_sizes[current_part]);
                         }
-
-                        // We don't use lookup_input after this line.
-                        lookup_input_ptr.reset(nullptr);
 
                         auto part1 = (one+beta) * gamma;
-                        for (std::size_t i = 0; i < lookup_value.size(); i++) {
-                            auto lookup_shifted = math::polynomial_shift(lookup_value[i], 1, basic_domain->m);
-                            g_multipliers.push_back( part1 + lookup_value[i] + beta * lookup_shifted);
-                            if( g_multipliers.size() == lookup_part_sizes[current_part] ){
-                                g *= math::polynomial_product<FieldType>(std::move(g_multipliers));
-                                result.push_back(g);
-                                g_multipliers.clear();
-                                g.clear();
-                                g = math::polynomial_dfs<typename FieldType::value_type>::one();
-                                current_part++;
-                            }
-                        }
-                        BOOST_ASSERT(g_multipliers.size() == 0);
+                        for (std::size_t current_part = 0; current_part < lookup_part_sizes.size(); ++current_part) {
+                            std::vector<math::polynomial_dfs<typename FieldType::value_type>> g_multipliers(
+                                lookup_part_sizes[current_part], math::polynomial_dfs<typename FieldType::value_type>());
 
-                        // We don't use lookup_value after this line.
-                        lookup_value_ptr.reset(nullptr);
+{
+PROFILE_PLACEHOLDER_SCOPE("Lookup argument compute_gs g_multipliers generation part");
+                            parallel_for(lookup_part_start_indices[current_part], lookup_part_start_indices[current_part + 1],
+                                [&g_multipliers, &one, &beta, &part1, &gamma, &lookup_input, &lookup_value, &lookup_part_start_indices, &current_part, this](std::size_t i) {
+                                if (i < lookup_input.size()) {
+                                    g_multipliers[i - lookup_part_start_indices[current_part]] = 
+                                        (one + beta) * (gamma + lookup_input[i]);
+                                } else {
+                                    auto lookup_shifted = math::polynomial_shift(lookup_value[i - lookup_input.size()], 1, this->basic_domain->m);
+                                    g_multipliers[i - lookup_part_start_indices[current_part]] = 
+                                        part1 + lookup_value[i - lookup_input.size()] + beta * lookup_shifted;
+                                }
+                            }, ThreadPool::PoolLevel::HIGH);
+}
+{
+PROFILE_PLACEHOLDER_SCOPE("Lookup argument compute_gs poly product part");
+                            result.push_back(math::polynomial_product<FieldType>(std::move(g_multipliers)));
+}
+                        }
+
                         return std::move(result);
                     }
 
@@ -357,7 +372,7 @@ namespace nil {
                             const typename FieldType::value_type& gamma,
                             const std::vector<std::size_t> &lookup_part_sizes
                         ) {
-                        PROFILE_PLACEHOLDER_SCOPE("Lookup argument compute poly h");
+                        PROFILE_PLACEHOLDER_SCOPE("Lookup argument compute_hs");
 
                         auto one = FieldType::value_type::one();
 
@@ -370,6 +385,7 @@ namespace nil {
                             auto sorted_shifted = math::polynomial_shift(sorted[i], 1, basic_domain->m);
                             h_multipliers.push_back((one + beta) * gamma + sorted[i] + beta * sorted_shifted);
                             if( h_multipliers.size() == lookup_part_sizes[current_part] ){
+PROFILE_PLACEHOLDER_SCOPE("Lookup argument compute_hs poly product part");
                                 h = math::polynomial_product<FieldType>(h_multipliers);
                                 result.push_back(h);
                                 h_multipliers.clear();
@@ -391,13 +407,12 @@ namespace nil {
                         PROFILE_PLACEHOLDER_SCOPE("Lookup argument compute poly V_L");
 
                         math::polynomial_dfs<typename FieldType::value_type> V_L(
-                            basic_domain->m-1,basic_domain->m, FieldType::value_type::zero());
+                            basic_domain->m - 1, basic_domain->m, FieldType::value_type::zero());
                         V_L[0] = FieldType::value_type::one();
                         auto one = FieldType::value_type::one();
 
-                        for (std::size_t k = 1; k <= preprocessed_data.common_data.desc.usable_rows_amount; k++) {
-                            V_L[k] = V_L[k-1];
-
+                        parallel_for(1, preprocessed_data.common_data.desc.usable_rows_amount + 1,
+                                [&one, &beta, &V_L, &reduced_input, &reduced_value, &sorted, &gamma](std::size_t k) {
                             typename FieldType::value_type g_tmp = (one + beta).pow(reduced_input.size());
                             for (std::size_t i = 0; i < reduced_input.size(); i++) {
                                 g_tmp *= gamma + reduced_input[i][k-1];
@@ -408,14 +423,20 @@ namespace nil {
                                 g_tmp *= part1 + reduced_value[i][k-1] + beta * reduced_value[i][k];
                             }
 
-                            V_L[k] *= g_tmp;
+                            V_L[k] = g_tmp;
 
                             typename FieldType::value_type h_tmp = FieldType::value_type::one();
                             for (std::size_t i = 0; i < sorted.size(); i++) {
                                 h_tmp *= part1 + sorted[i][k-1] + beta * sorted[i][k];
                             }
                             V_L[k] *= h_tmp.inversed();
+                        }, ThreadPool::PoolLevel::HIGH);
+
+                        // TODO(martun): we can parallize the lower loop as well, but it's fast enough to ignore for now.
+                        for (std::size_t k = 1; k <= preprocessed_data.common_data.desc.usable_rows_amount; k++) {
+                            V_L[k] *= V_L[k-1];
                         }
+
                         return V_L;
                     }
 
@@ -582,7 +603,7 @@ namespace nil {
                     }
 
                     // Each lookup table should fill full rectangle inside assignment table
-                    // Lookup tables may contain repeated values, but they shoul be placed into one
+                    // Lookup tables may contain repeated values, but they should be placed into one
                     // option one under another.
                     // Because of theta randomness compressed lookup tables' vectors for different table may contain
                     // similar values only with negligible probability.
