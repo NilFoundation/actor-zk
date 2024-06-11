@@ -204,23 +204,40 @@ namespace nil {
                             PROFILE_PLACEHOLDER_SCOPE("PERMUTATION ARGUMENT else block");
                             math::polynomial_dfs<typename FieldType::value_type> previous_poly = V_P;
                             math::polynomial_dfs<typename FieldType::value_type> current_poly = V_P;
+                            // We need to store all the values of current_poly. Suddenly this increases the RAM usage, but 
+                            // there's no other way to parallelize this loop.
+                            std::vector<math::polynomial_dfs<typename FieldType::value_type>> all_polys(1, V_P);
+
                             for( std::size_t i = 0; i < preprocessed_data.common_data.permutation_parts-1; i++ ){
-                                auto g = gs[i];
-                                auto h = hs[i];
+                                const auto& g = gs[i];
+                                const auto& h = hs[i];
                                 auto reduced_g = reduce_dfs_polynomial_domain(g, basic_domain->m);
                                 auto reduced_h = reduce_dfs_polynomial_domain(h, basic_domain->m);
-                                for(std::size_t j = 0; j < preprocessed_data.common_data.desc.usable_rows_amount; j++){
-                                    current_poly[j] = (previous_poly[j] * reduced_g[j]) * reduced_h[j].inversed();
-                                }
+                                parallel_for(0, preprocessed_data.common_data.desc.usable_rows_amount,
+                                    [&reduced_g, &reduced_h, &current_poly, &previous_poly](std::size_t j) {
+                                        current_poly[j] = (previous_poly[j] * reduced_g[j]) * reduced_h[j].inversed();
+                                    },
+                                    ThreadPool::PoolLevel::LOW);
+
                                 commitment_scheme.append_to_batch(PERMUTATION_BATCH, current_poly);
-                                auto part = permutation_alphas[i] * (previous_poly * g - current_poly * h);
-                                F_dfs[1] += part;
+                                all_polys.push_back(current_poly);
                                 previous_poly = current_poly;
                             }
+                            std::vector<math::polynomial_dfs<typename FieldType::value_type>> F_dfs_1_parts(
+                                preprocessed_data.common_data.permutation_parts);
+                            parallel_for(0, preprocessed_data.common_data.permutation_parts - 1,
+                                [&gs, &hs, &permutation_alphas, &all_polys, &F_dfs_1_parts](std::size_t i) {
+                                    auto &g = gs[i];
+                                    auto &h = hs[i];
+                                    F_dfs_1_parts[i] = permutation_alphas[i] * (all_polys[i] * g - all_polys[i + 1] * h);
+                                },
+                                ThreadPool::PoolLevel::HIGH);
+
                             std::size_t last = permutation_alphas.size();
                             auto &g = gs[last];
                             auto &h = hs[last];
-                            F_dfs[1] += (previous_poly * g - V_P_shifted * h);
+                            F_dfs_1_parts.back() = previous_poly * g - V_P_shifted * h;
+                            F_dfs[1] += polynomial_sum<FieldType>(std::move(F_dfs_1_parts));
                             F_dfs[1] *= (preprocessed_data.q_last + preprocessed_data.q_blind) - one_polynomial;
                         }
 
