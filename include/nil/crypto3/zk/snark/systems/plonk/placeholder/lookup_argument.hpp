@@ -487,7 +487,8 @@ namespace nil {
 
 
                         auto get_var_value = [&domain=basic_domain, &assignments=plonk_columns]
-                        (const DfsVariableType &var) {
+                        (const DfsVariableType &var) -> polynomial_dfs_type {
+// TODO(martun): can't return by value here.
                             polynomial_dfs_type assignment;
                             switch (var.type) {
                                 case DfsVariableType::column_type::witness:
