@@ -155,6 +155,7 @@ namespace nil {
 
                         // If public input sizes are set, all of them should be set.
                         if(constraint_system.public_input_sizes_num() != 0 && constraint_system.public_input_sizes_num() != table_description.public_input_columns){
+std::cout << "constraint_system.public_input_sizes_num() != 0 && constraint_system.public_input_sizes_num() != table_description.public_input_columns" << std::endl;
                             return false;
                         }
 
@@ -171,6 +172,7 @@ namespace nil {
                             value *= numerator;
                             if( value != proof.eval_proof.eval_proof.z.get(VARIABLE_VALUES_BATCH, table_description.witness_columns + i, 0) )
                             {
+std::cout << "value != proof.eval_proof.eval_proof.z.get(VARIABLE_VALUES_BATCH, table_description.witness_columns + i, 0)"  << std::endl;
                                 return false;
                             }
                         }
@@ -370,6 +372,7 @@ namespace nil {
                         std::map<std::size_t, typename commitment_scheme_type::commitment_type> commitments = proof.commitments;
                         commitments[FIXED_VALUES_BATCH] = common_data.commitments.fixed_values;
                         if (!commitment_scheme.verify_eval( proof.eval_proof.eval_proof, commitments, transcript )) {
+std::cout << "!commitment_scheme.verify_eval( proof.eval_proof.eval_proof, commitments, transcript " << std::endl;
                             return false;
                         }
 
@@ -394,6 +397,7 @@ namespace nil {
                         // Z is polynomial -1, 0 ...., 0, 1
                         typename FieldType::value_type Z_at_challenge = common_data.Z.evaluate(challenge);
                         if (F_consolidated != Z_at_challenge * T_consolidated) {
+std::cout << "F_consolidated != Z_at_challenge * T_consolidated" << std::endl;
                             return false;
                         }
                         return true;
