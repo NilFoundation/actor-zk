@@ -133,7 +133,7 @@ namespace nil {
                                 if (var.rotation != 0) {
                                     assignment = math::polynomial_shift(assignment, var.rotation, domain->m);
                                 }
-                                // In parallel version we always resize the assignment poly, it's better to parallelization.
+                                // In parallel version we always resize the assignment poly, it's better for parallelization.
                                 // if (count > 1) {
                                 assignment.resize(extended_domain_size, domain, extended_domain);
                                 variable_values_out[var] = std::move(assignment);
@@ -149,7 +149,7 @@ namespace nil {
                             std::uint32_t max_gates_degree,
                             const polynomial_dfs_type &mask_polynomial,
                             transcript_type& transcript) {
-                        PROFILE_PLACEHOLDER_SCOPE("gate_argument_time");
+                        PROFILE_PLACEHOLDER_SCOPE("Gate Argument prove_eval");
 
                         // max_gates_degree that comes from the outside does not take into account multiplication
                         // by selector.
@@ -164,6 +164,7 @@ namespace nil {
                         std::vector<std::uint32_t> extended_domain_sizes;
                         std::vector<std::uint32_t> degree_limits;
                         std::uint32_t max_degree = std::pow(2, ceil(std::log2(max_gates_degree)));
+std::cout << "max_gates_degree = " << max_gates_degree << std::endl;
                         std::uint32_t max_domain_size = original_domain->m * max_degree;
 
                         degree_limits.push_back(max_degree);
@@ -172,6 +173,9 @@ namespace nil {
                         extended_domain_sizes.push_back(max_domain_size / 2);
 
                         std::vector<math::expression<polynomial_dfs_variable_type>> expressions(extended_domain_sizes.size());
+
+                        // Only in parallel version we store the subexpressions of each expression and ignore the cache.
+                        std::vector<std::vector<math::expression<polynomial_dfs_variable_type>>> subexpressions(extended_domain_sizes.size());
 
                         auto theta_acc = FieldType::value_type::one();
 
@@ -185,10 +189,31 @@ namespace nil {
 
                         const auto& gates = constraint_system.gates();
 
+std::cout << "We've got " << gates.size() << " gates" << std::endl;
+
                         for (const auto& gate: gates) {
                             std::vector<math::expression<polynomial_dfs_variable_type>> gate_results(extended_domain_sizes.size());
 
-                            for (const auto& constraint : gate.constraints) {
+                            // We will split gates into parts especially for zkEVM circuit, since there is only 1 large gate with
+                            // 683 constraints. Will split it into 24 parts, ~32 constraints each.
+                            // This will mean our code will multiply by selector 16 times, instead of just once. But this is 
+                            // much better that losing parallelization. We do not want to re-write the whole code to try parallelize
+                            // each gate compatation separately. This will not harm circuits with smaller number of terms much.
+                            std::vector<math::expression<polynomial_dfs_variable_type>> gate_parts(extended_domain_sizes.size());
+                            std::vector<std::size_t> gate_parts_constaint_counts(extended_domain_sizes.size());
+    
+
+                            // This parameter can be tuned based on the circuit and the number of cores of the server on which the proofs
+                            // are generated. On the current zkEVM circuit this value is optimal based on experiments.
+                            const std::size_t constraint_limit = 16;
+
+std::cout << "Current gate has " << gate.constraints.size() << " constraints" << std::endl;
+
+                            auto selector = polynomial_dfs_variable_type(
+                                gate.selector_index, 0, false, polynomial_dfs_variable_type::column_type::selector);
+
+                            for (std::size_t constraint_idx = 0; constraint_idx < gate.constraints.size(); ++constraint_idx) {
+                                const auto& constraint = gate.constraints[constraint_idx];
                                 auto next_term = converter.convert(constraint) * value_type_to_polynomial_dfs(theta_acc);
 
                                 theta_acc *= theta;
@@ -198,38 +223,60 @@ namespace nil {
                                     // Whatever the degree of term is, add it to the maximal degree expression.
                                     if (degree_limits[i] >= constraint_degree || i == 0) {
                                         gate_results[i] += next_term;
+                                        gate_parts[i] += next_term;
+                                        gate_parts_constaint_counts[i]++;
+
+                                        // If we already have constraint_limit constaints in the gate_parts[i], add it to the 'subexpressions'.
+                                        if (gate_parts_constaint_counts[i] == constraint_limit) {
+                                            subexpressions[i].push_back(gate_parts[i] * selector);
+                                            gate_parts[i] = math::expression<polynomial_dfs_variable_type>();
+                                            gate_parts_constaint_counts[i] = 0;
+                                        }
                                         break;
                                     }
+                                     
                                 }
                             }
 
-                            auto selector = polynomial_dfs_variable_type(
-                                gate.selector_index, 0, false, polynomial_dfs_variable_type::column_type::selector);
-
                             for (size_t i = 0; i < extended_domain_sizes.size(); ++i) {
-                                gate_results[i] *= selector;
-                                expressions[i] += gate_results[i];
+                                // Only in parallel version we store the subexpressions of each expression and ignore the cache.
+                                expressions[i] += gate_results[i] * selector;
+                                if (gate_parts_constaint_counts[i] != 0)
+                                    subexpressions[i].push_back(gate_parts[i] * selector);
                             }
                         }
 
-                        std::unordered_map<polynomial_dfs_variable_type, polynomial_dfs_type> variable_values;
                         std::array<polynomial_dfs_type, argument_size> F;
 
-                        for (size_t i = 0; i < extended_domain_sizes.size(); ++i) {
-                            if (i != 0 && extended_domain_sizes[i] != extended_domain_sizes[i-1]) {
-                                variable_values.clear();
-                            }
+                        std::vector<polynomial_dfs_type> F_0_parts(extended_domain_sizes.size());
+std::cout << "expressions[0] = " << expressions[0] << "expressions[1] = " << expressions[1] << std::endl;
+std::cout << "Running in parallel for " << extended_domain_sizes.size() << " different degree expressions" << std::endl;
+                        parallel_for(0, extended_domain_sizes.size(),
+                                [&subexpressions, &extended_domain_sizes, &F_0_parts, &original_domain, &column_polynomials, &expressions](std::size_t i) {
+                            std::unordered_map<polynomial_dfs_variable_type, polynomial_dfs_type> variable_values;
+                            
+std::cout << "Building variable value map " << std::endl;
                             build_variable_value_map(expressions[i], column_polynomials, original_domain,
                                 extended_domain_sizes[i], variable_values);
 
-                            math::cached_expression_evaluator<polynomial_dfs_variable_type> evaluator(
-                                expressions[i], [&assignments=variable_values, domain_size=extended_domain_sizes[i]](const polynomial_dfs_variable_type &var) {
-                                return assignments[var];
-                            });
+std::cout << "Done Building variable value map " << std::endl;
+                            std::vector<polynomial_dfs_type> subvalues(subexpressions[i].size());
+std::cout << "Running for "<< subexpressions[i].size() << " subexpressions in parallel"  << std::endl;
+                            parallel_for(0, subexpressions[i].size(),
+                                [&subexpressions, &variable_values, &extended_domain_sizes, &subvalues, i](std::size_t subexpression_index) {
+                                // Only in parallel version we store the subexpressions of each expression and ignore the cache, not using "cached_expression_evaluator".
+                                math::expression_evaluator<polynomial_dfs_variable_type> evaluator(
+                                    subexpressions[i][subexpression_index], [&assignments=variable_values, domain_size=extended_domain_sizes[i]]
+                                        (const polynomial_dfs_variable_type &var) -> const polynomial_dfs_type& {
+                                            return assignments[var];
+                                    });
+                                subvalues[subexpression_index] = evaluator.evaluate(); 
+                            }, ThreadPool::PoolLevel::HIGH);
+                            
+                            F_0_parts[i] = polynomial_sum<FieldType>(std::move(subvalues));
+                        }, ThreadPool::PoolLevel::LASTPOOL);
 
-                            F[0] += evaluator.evaluate();
-                        }
-
+                        F[0] += polynomial_sum<FieldType>(std::move(F_0_parts));
                         F[0] *= mask_polynomial;
                         return F;
                     }
